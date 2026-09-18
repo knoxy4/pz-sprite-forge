@@ -1,0 +1,38 @@
+{
+  "_why": "The `appliance` preset's core is {BlocksPlacement, CanScrap, IsMoveAble, Material: Electric}, derived statistically from 365 sampled appliance tiles. Applied to glassware, a burner and plastic jugs it was flatly wrong. Material is not cosmetic: ISMoveableSpriteProps:getScrapDefinition reads the FIRST material only to pick the tool, perk and animation (cli line ~800), so Material=Electric meant these tiles wanted a SCREWDRIVER, were gated on the ELECTRICITY perk, played the Dismantle anim and yielded ElectronicsScrap + ElectricWire. All three materials contribute yield (getScrapItemsList, line ~3103), each rolled at 10 + perkLevel*10 + baseChance against its own perk.",
+
+  "_sheet_order": "Verified by pixel-match (tools/sheet_order.py), not assumed: the manifest lists cells grouped by piece, but the packer regroups by facing, so the sheet runs glassware/burner/jugs within each of S,E,N,W. index % 3 therefore selects the piece: 0 glassware, 1 burner, 2 jugs.",
+
+  "core": {
+    "BlocksPlacement": "",
+    "CanScrap": "",
+    "IsMoveAble": "",
+    "ScrapSize": "Small",
+    "GroupName": "Cook Lab",
+    "Material": null
+  },
+
+  "sequence": [
+    {
+      "_piece": "glassware rig - ring stand, flask, condenser, receiving jar",
+      "_pick": "Glass first: Hammer + Woodwork 75 + Hammering, which is how you take glassware apart. Glass carries no scrap items of its own (vanilla comment: 'usually as second/third material'), so MetalScrap covers the ring stand and yields ScrapMetal/SteelChunk/SteelPiece.",
+      "CustomName": "Glassware Rig",
+      "Material": "Glass",
+      "Material2": "MetalScrap"
+    },
+    {
+      "_piece": "burner and pot - hotplate, dented pot, thermometer",
+      "_pick": "Mechanical first (Hammer + Woodwork 75) rather than MetalScrap first, because MetalScrap's own definition demands a BlowTorch AND a welding mask at MetalWelding - absurd for a bench burner. Mechanical is vanilla's 'bolts, cogs etc' slot and yields nothing itself, so MetalScrap second supplies the metal.",
+      "CustomName": "Burner and Pot",
+      "Material": "Mechanical",
+      "Material2": "MetalScrap"
+    },
+    {
+      "_piece": "jug rack - jugs, jars, a funnel, filters, coiled tubing",
+      "_pick": "PlasticHard first: Hammer + Woodwork 75, vanilla's slot for 'objects having pieces of hard plastic' - the same first material as the Spiffo statue and the wheelie bin. Paper second for the coffee-filter stack.",
+      "CustomName": "Jug Rack",
+      "Material": "PlasticHard",
+      "Material2": "Paper"
+    }
+  ]
+}
