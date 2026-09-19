@@ -1,26 +1,31 @@
 {
-  "_why": "Generator tiles are picked up through CustomItem (the item's WorldObjectSprite points back at _0/_4/_8/_12/_16), not IsMoveAble. Props match what 0.1.0 shipped.",
+  "_why": "Generator tiles are picked up through CustomItem (the item's WorldObjectSprite points back at _0/_4/_8/_12/_16), not IsMoveAble. Props match what 0.1.0 shipped, plus solidtrans (0.3.1) so the machines block movement like a TV does.",
   "_sheet_order": "Subject-major since the manifest carries a per-cell group stamp (knx_badlands_power.py): index // 4 is the object, index % 4 the facing S,E,N,W. The sequence is therefore 4 identical steps per object.",
   "core": {
     "BlocksPlacement": "",
+    "solidtrans": "",
     "GroupName": "Badlands"
   },
   "sequence": [
     {
       "CustomName": "Battery Bank",
-      "CustomItem": "Base.BL_BatteryBank"
+      "CustomItem": "Base.BL_BatteryBank",
+      "GeneratorSound": "BadlandsBank"
     },
     {
       "CustomName": "Battery Bank",
-      "CustomItem": "Base.BL_BatteryBank"
+      "CustomItem": "Base.BL_BatteryBank",
+      "GeneratorSound": "BadlandsBank"
     },
     {
       "CustomName": "Battery Bank",
-      "CustomItem": "Base.BL_BatteryBank"
+      "CustomItem": "Base.BL_BatteryBank",
+      "GeneratorSound": "BadlandsBank"
     },
     {
       "CustomName": "Battery Bank",
-      "CustomItem": "Base.BL_BatteryBank"
+      "CustomItem": "Base.BL_BatteryBank",
+      "GeneratorSound": "BadlandsBank"
     },
     {
       "CustomName": "Propane Generator",
@@ -40,35 +45,43 @@
     },
     {
       "CustomName": "Waste Oil Generator",
-      "CustomItem": "Base.BL_GenWasteOil"
+      "CustomItem": "Base.BL_GenWasteOil",
+      "GeneratorSound": "OldGenerator"
     },
     {
       "CustomName": "Waste Oil Generator",
-      "CustomItem": "Base.BL_GenWasteOil"
+      "CustomItem": "Base.BL_GenWasteOil",
+      "GeneratorSound": "OldGenerator"
     },
     {
       "CustomName": "Waste Oil Generator",
-      "CustomItem": "Base.BL_GenWasteOil"
+      "CustomItem": "Base.BL_GenWasteOil",
+      "GeneratorSound": "OldGenerator"
     },
     {
       "CustomName": "Waste Oil Generator",
-      "CustomItem": "Base.BL_GenWasteOil"
+      "CustomItem": "Base.BL_GenWasteOil",
+      "GeneratorSound": "OldGenerator"
     },
     {
       "CustomName": "Scrap Generator",
-      "CustomItem": "Base.BL_GenScrap"
+      "CustomItem": "Base.BL_GenScrap",
+      "GeneratorSound": "OldGenerator"
     },
     {
       "CustomName": "Scrap Generator",
-      "CustomItem": "Base.BL_GenScrap"
+      "CustomItem": "Base.BL_GenScrap",
+      "GeneratorSound": "OldGenerator"
     },
     {
       "CustomName": "Scrap Generator",
-      "CustomItem": "Base.BL_GenScrap"
+      "CustomItem": "Base.BL_GenScrap",
+      "GeneratorSound": "OldGenerator"
     },
     {
       "CustomName": "Scrap Generator",
-      "CustomItem": "Base.BL_GenScrap"
+      "CustomItem": "Base.BL_GenScrap",
+      "GeneratorSound": "OldGenerator"
     },
     {
       "CustomName": "Industrial Generator",
@@ -86,5 +99,6 @@
       "CustomName": "Industrial Generator",
       "CustomItem": "Base.BL_GenDiesel"
     }
-  ]
+  ],
+  "_sound": "IsoGenerator.getSoundPrefix() reads the GeneratorSound tile property and plays <prefix>Starting/Loop/Stopping/FailedToStart/AddFuel/Repair/Connect/Backfire; absent = 'Generator'. Vanilla sets OldGenerator on Generator_Old's tiles only. BadlandsBank is our own quiet set (scripts/badlandspower_sounds.txt)."
 }
