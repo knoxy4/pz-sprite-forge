@@ -16,6 +16,10 @@ at _0, _4, _8 and _12):
      8-11   waste-oil genset  badlands_power_01_8
     12-15   scrap jury-rig    badlands_power_01_12
     16-19   industrial diesel badlands_power_01_16
+    20-39   bank overlays: 20 + (batteries - 1) * 4 + facing, batteries 1..5
+
+The bank tile (0-3) is the empty rack. The Lua sets one overlay sprite on top
+of it to show however many batteries are in the rack (BP.updateRackOverlay).
 
 Run headlessly:
     & 'C:\\Program Files\\Blender Foundation\\Blender 4.2\\blender.exe' -b \
@@ -97,12 +101,18 @@ def main() -> None:
     scene.cycles.use_denoising = True
 
     order = [
-        ("bp_bank", lambda: gensets.build("bank", mats)),
+        ("bp_bank", lambda: gensets.build("bank", mats, count=0)),
         ("bp_propane", lambda: gensets.build("propane", mats)),
         ("bp_wasteoil", lambda: gensets.build("wasteoil", mats)),
         ("bp_scrap", lambda: gensets.build("scrap", mats)),
         ("bp_diesel", lambda: gensets.build("diesel", mats)),
     ]
+    # Battery-count overlays for the bank: 1..5 batteries, groups 5..9.
+    for n in range(1, 6):
+        order.append((f"bp_bank_n{n}",
+                      lambda n=n: gensets.build("bank", mats, count=n,
+                                                overlay=True)))
+    overlay_groups = set(range(5, 10))
 
     manifests = []
     for sheet, build_fn in order:
@@ -122,7 +132,11 @@ def main() -> None:
         # The group stamp is what keeps each machine's four facings together
         # on the sheet; without it pzforge sorts facing-major and the sheet
         # cycles bank/propane/... inside each facing (the 2026-09-18 bug).
-        cells.extend(dict(cell, group=group) for cell in manifest["cells"])
+        extra = {"group": group}
+        if group in overlay_groups:
+            # Overlay sprites carry no tile properties, as vanilla's do.
+            extra["tile_props"] = {}
+        cells.extend(dict(cell, **extra) for cell in manifest["cells"])
     merged["elements"] = elements
     merged["cells"] = cells
 

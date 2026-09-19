@@ -759,10 +759,19 @@ def build_diesel(k: Kit, m: dict) -> None:
 
 # ---------------------------------------------------------------- battery bank
 
-def build_bank(k: Kit, m: dict) -> None:
+def build_bank(k: Kit, m: dict, count: int = 5, overlay: bool = False) -> None:
     """After the operator's photo: a block pallet carrying five deep-cycle
     batteries in a row, wired in series, a red main lead up to a black
-    inverter on an OSB backboard screwed to two posts at the back edge."""
+    inverter on an OSB backboard screwed to two posts at the back edge.
+
+    The game shows how many batteries are in the rack, so the art ships in two layers:
+      * the tile itself (count=0): pallet, backboard, inverter, lead stubs;
+      * one overlay per count 1-5 (overlay=True): only the first ``count``
+        batteries, their links and the main leads. The tile geometry is still
+        built, but as a holdout, so the backboard hides the batteries on the back
+        facings and the overlay lines up pixel for pixel with the tile under it.
+    """
+    first = len(k.parts)
     PL, PW = 0.980, 0.520
     # Pallet: three rows of block feet, three stringers, deck boards.
     for ix in (-1, 0, 1):
@@ -777,9 +786,51 @@ def build_bank(k: Kit, m: dict) -> None:
               (0.140, PW, 0.036), m["pine"], bevel=0.004)
     deck = 0.156
 
-    # Five group-31 batteries across the pallet, long side along Y.
+    # OSB backboard on two posts at the back edge, inverter on it.
+    oy = PW / 2 - 0.030
+    for sx in (-1, 1):
+        k.box(f"b_post_{sx}", (sx * 0.300, oy + 0.020, deck + 0.270),
+              (0.060, 0.040, 0.540), m["pine_dark"])
+    # Board kept low enough that the back facings still show the batteries.
+    k.box("b_osb", (0, oy, deck + 0.360), (0.760, 0.020, 0.340), m["osb"])
+    iz = deck + 0.400
+    k.box("b_inverter", (0.060, oy - 0.070, iz), (0.380, 0.120, 0.200),
+          m["batt_case"], bevel=0.018)
+    k.box("b_inverter_face", (0.060, oy - 0.132, iz), (0.330, 0.004, 0.150),
+          m["gap"])
+    k.box("b_inverter_wave", (0.030, oy - 0.135, iz + 0.010),
+          (0.160, 0.004, 0.020), m["sticker_white"])
+    k.box("b_inverter_stripe", (0.160, oy - 0.135, iz - 0.040),
+          (0.080, 0.004, 0.016), m["lamp_green"])
+    for sx in (-1, 1):
+        k.box(f"b_inverter_fin_{sx}", (0.060 + sx * 0.195, oy - 0.070, iz),
+              (0.012, 0.130, 0.190), m["steel"])
+    k.cyl("b_inverter_lamp", (-0.090, oy - 0.135, iz - 0.050), 0.008, 0.006,
+          m["lamp_green"], axis="Y", verts=12)
+    # Main-lead stubs hanging off the inverter, lugs free: the empty rack.
+    red_end = (0.180, oy - 0.080, iz - 0.200)
+    black_end = (-0.080, oy - 0.080, iz - 0.200)
+    k.path("b_stub_red", [(0.180, oy - 0.080, iz - 0.100), red_end], 0.012,
+           m["cable_red"])
+    k.path("b_stub_black", [(-0.060, oy - 0.080, iz - 0.100), black_end],
+           0.012, m["rubber"])
+    for name, end in (("b_lug_red", red_end), ("b_lug_black", black_end)):
+        k.cyl(name, (end[0], end[1], end[2] - 0.012), 0.014, 0.012,
+              m["lead"], verts=12)
+    k.path("b_ac_out", [(-0.130, oy - 0.070, iz + 0.100),
+                        (-0.200, oy - 0.070, iz + 0.180),
+                        (-0.330, oy - 0.060, iz + 0.150),
+                        (-0.360, oy - 0.060, deck + 0.050)], 0.008,
+           m["rubber"])
+    if overlay:
+        for part in k.parts[first:]:
+            part.is_holdout = True
+    if count <= 0:
+        return
+
+    # Group-31 batteries across the pallet, long side along Y, filled from -X.
     bw, bd, bh = 0.172, 0.300, 0.230
-    xs = [-0.360 + i * 0.180 for i in range(5)]
+    xs = [-0.360 + i * 0.180 for i in range(count)]
     by = -0.060
     for i, x in enumerate(xs):
         k.box(f"b_batt_{i}", (x, by, deck + bh / 2), (bw, bd, bh),
@@ -809,49 +860,19 @@ def build_bank(k: Kit, m: dict) -> None:
                   m[cap], verts=12)
     # Series links: + of one to - of the next.
     top = deck + bh + 0.050
-    for i in range(4):
+    for i in range(count - 1):
         k.path(f"b_link_{i}", [(xs[i] + 0.055, by + 0.100, top),
                                (xs[i] + 0.090, by + 0.130, top + 0.020),
                                (xs[i + 1] - 0.055, by + 0.100, top)],
                0.007, m["rubber"])
-
-    # OSB backboard on two posts at the back edge, inverter on it.
-    oy = PW / 2 - 0.030
-    for sx in (-1, 1):
-        k.box(f"b_post_{sx}", (sx * 0.300, oy + 0.020, deck + 0.270),
-              (0.060, 0.040, 0.540), m["pine_dark"])
-    # Board kept low enough that the back facings still show the batteries.
-    k.box("b_osb", (0, oy, deck + 0.360), (0.760, 0.020, 0.340), m["osb"])
-    iz = deck + 0.400
-    k.box("b_inverter", (0.060, oy - 0.070, iz), (0.380, 0.120, 0.200),
-          m["batt_case"], bevel=0.018)
-    k.box("b_inverter_face", (0.060, oy - 0.132, iz), (0.330, 0.004, 0.150),
-          m["gap"])
-    k.box("b_inverter_wave", (0.030, oy - 0.135, iz + 0.010),
-          (0.160, 0.004, 0.020), m["sticker_white"])
-    k.box("b_inverter_stripe", (0.160, oy - 0.135, iz - 0.040),
-          (0.080, 0.004, 0.016), m["lamp_green"])
-    for sx in (-1, 1):
-        k.box(f"b_inverter_fin_{sx}", (0.060 + sx * 0.195, oy - 0.070, iz),
-              (0.012, 0.130, 0.190), m["steel"])
-    k.cyl("b_inverter_lamp", (-0.090, oy - 0.135, iz - 0.050), 0.008, 0.006,
-          m["lamp_green"], axis="Y", verts=12)
-    # Main leads: + (red) and - (black) from the end batteries up to the box.
-    k.path("b_main_red", [(xs[4] + 0.055, by + 0.100, top),
-                          (xs[4] + 0.020, by + 0.180, top + 0.080),
-                          (0.180, oy - 0.080, iz - 0.200),
-                          (0.180, oy - 0.080, iz - 0.100)], 0.012,
-           m["cable_red"])
+    # Main leads: + (red) and - (black) from the end batteries to the stubs.
+    last = xs[-1]
+    k.path("b_main_red", [(last + 0.055, by + 0.100, top),
+                          (last + 0.020, by + 0.180, top + 0.080),
+                          red_end], 0.012, m["cable_red"])
     k.path("b_main_black", [(xs[0] - 0.055, by + 0.100, top),
                             (xs[0] - 0.020, by + 0.200, top + 0.120),
-                            (-0.080, oy - 0.080, iz - 0.200),
-                            (-0.060, oy - 0.080, iz - 0.100)], 0.012,
-           m["rubber"])
-    k.path("b_ac_out", [(-0.130, oy - 0.070, iz + 0.100),
-                        (-0.200, oy - 0.070, iz + 0.180),
-                        (-0.330, oy - 0.060, iz + 0.150),
-                        (-0.360, oy - 0.060, deck + 0.050)], 0.008,
-           m["rubber"])
+                            black_end], 0.012, m["rubber"])
 
 
 BUILDERS = {
@@ -863,11 +884,11 @@ BUILDERS = {
 }
 
 
-def build(name: str, mats: dict | None = None) -> list[bpy.types.Object]:
+def build(name: str, mats: dict | None = None, **kw) -> list[bpy.types.Object]:
     if not TEXTURE_PATH.exists():
         make_texture()
     k = Kit()
-    BUILDERS[name](k, mats or materials())
+    BUILDERS[name](k, mats or materials(), **kw)
     return k.parts
 
 
