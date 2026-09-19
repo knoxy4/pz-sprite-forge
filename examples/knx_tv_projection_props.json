@@ -1,0 +1,9 @@
+{
+  "_why": "Tile properties copied from vanilla appliances_television_01_0 (TvWideScreen) minus the tabletop keys: this is a floor set. IsoType=IsoTelevision + signal=tv are what make the engine build an IsoTelevision; Facing (written per cell by the builder) drives IsoTelevision.isFacing. Overlay and placeholder cells carry tile_props {} in the manifest and bypass all of this.",
+  "core": {
+    "BlocksPlacement": "", "CanScrap": "", "CustomItem": "BadlandsClutter.TvProjection",
+    "CustomName": "Projection TV", "GroupName": "Badlands", "IsMoveAble": "",
+    "IsoType": "IsoTelevision", "Material": "Electric", "MaterialType": "Glass_Light",
+    "PickUpWeight": "100", "TV": "", "signal": "tv", "solidtrans": ""
+  }
+}
