@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import shutil
 import sys
 import tempfile
@@ -26,7 +27,8 @@ from pzforge.style import (bleed_edges, edge_relief, load_profile, match_tone,
                            measure, measure_relief, snap_alpha)
 from pzforge.tiledef import TileDefinitions
 
-PZ = Path(r"C:\Program Files (x86)\Steam\steamapps\common\ProjectZomboid\media\texturepacks")
+PZ = (Path(os.environ["PZ_MEDIA"]) / "texturepacks" if os.environ.get("PZ_MEDIA") else
+      Path(r"C:\Program Files (x86)\Steam\steamapps\common\ProjectZomboid\media\texturepacks"))
 FAILURES: list[str] = []
 
 
@@ -330,12 +332,31 @@ def test_ids() -> None:
     check("chosen id is above the reserved floor", free >= modgen.TILEDEF_ID_FLOOR)
 
 
+def test_sheet_groups() -> None:
+    print("\n== sheet grouping ==")
+    from pzforge.sheet import Cell, build_sheet
+    blank = lambda: Image.new("RGBA", (4, 8), (0, 0, 0, 0))
+    faces = ["S", "E", "N", "W"]
+    # Two subjects rendered at the same x,y, as a multi-object recipe merges them.
+    cells = [Cell(blank(), f, 0, 0, source=f"{g}_{f}", facing_order=i, group=g)
+             for g in range(2) for i, f in enumerate(faces)]
+    order = [c.source for c in build_sheet("t", cells, (4, 8)).cells]
+    check("grouped cells keep each subject's facings contiguous",
+          order == ["0_S", "0_E", "0_N", "0_W", "1_S", "1_E", "1_N", "1_W"], str(order))
+    legacy = [Cell(blank(), f, 0, 0, source=f"{g}_{f}", facing_order=i)
+              for g in range(2) for i, f in enumerate(faces)]
+    order = [c.source for c in build_sheet("t", legacy, (4, 8)).cells]
+    check("ungrouped manifests keep the old facing-major order",
+          order[:2] == ["0_S", "1_S"], str(order))
+
+
 if __name__ == "__main__":
     tmp = Path(tempfile.mkdtemp(prefix="pzforge_"))
     try:
         test_style()
         test_pipeline(tmp)
         test_ids()
+        test_sheet_groups()
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     print(f"\n{'ALL PASS' if not FAILURES else 'FAILED: ' + ', '.join(FAILURES)}")

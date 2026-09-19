@@ -1,0 +1,90 @@
+{
+  "_why": "Generator tiles are picked up through CustomItem (the item's WorldObjectSprite points back at _0/_4/_8/_12/_16), not IsMoveAble. Props match what 0.1.0 shipped.",
+  "_sheet_order": "Subject-major since the manifest carries a per-cell group stamp (knx_badlands_power.py): index // 4 is the object, index % 4 the facing S,E,N,W. The sequence is therefore 4 identical steps per object.",
+  "core": {
+    "BlocksPlacement": "",
+    "GroupName": "Badlands"
+  },
+  "sequence": [
+    {
+      "CustomName": "Battery Bank",
+      "CustomItem": "Base.BL_BatteryBank"
+    },
+    {
+      "CustomName": "Battery Bank",
+      "CustomItem": "Base.BL_BatteryBank"
+    },
+    {
+      "CustomName": "Battery Bank",
+      "CustomItem": "Base.BL_BatteryBank"
+    },
+    {
+      "CustomName": "Battery Bank",
+      "CustomItem": "Base.BL_BatteryBank"
+    },
+    {
+      "CustomName": "Propane Generator",
+      "CustomItem": "Base.BL_GenPropane"
+    },
+    {
+      "CustomName": "Propane Generator",
+      "CustomItem": "Base.BL_GenPropane"
+    },
+    {
+      "CustomName": "Propane Generator",
+      "CustomItem": "Base.BL_GenPropane"
+    },
+    {
+      "CustomName": "Propane Generator",
+      "CustomItem": "Base.BL_GenPropane"
+    },
+    {
+      "CustomName": "Waste Oil Generator",
+      "CustomItem": "Base.BL_GenWasteOil"
+    },
+    {
+      "CustomName": "Waste Oil Generator",
+      "CustomItem": "Base.BL_GenWasteOil"
+    },
+    {
+      "CustomName": "Waste Oil Generator",
+      "CustomItem": "Base.BL_GenWasteOil"
+    },
+    {
+      "CustomName": "Waste Oil Generator",
+      "CustomItem": "Base.BL_GenWasteOil"
+    },
+    {
+      "CustomName": "Scrap Generator",
+      "CustomItem": "Base.BL_GenScrap"
+    },
+    {
+      "CustomName": "Scrap Generator",
+      "CustomItem": "Base.BL_GenScrap"
+    },
+    {
+      "CustomName": "Scrap Generator",
+      "CustomItem": "Base.BL_GenScrap"
+    },
+    {
+      "CustomName": "Scrap Generator",
+      "CustomItem": "Base.BL_GenScrap"
+    },
+    {
+      "CustomName": "Industrial Generator",
+      "CustomItem": "Base.BL_GenDiesel"
+    },
+    {
+      "CustomName": "Industrial Generator",
+      "CustomItem": "Base.BL_GenDiesel"
+    },
+    {
+      "CustomName": "Industrial Generator",
+      "CustomItem": "Base.BL_GenDiesel"
+    },
+    {
+      "CustomName": "Industrial Generator",
+      "CustomItem": "Base.BL_GenDiesel"
+    }
+  ]
+}

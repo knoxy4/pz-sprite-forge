@@ -33,6 +33,11 @@ class Cell:
     source: str = ""
     #: Position of this cell's facing in the manifest, so facings stay contiguous.
     facing_order: int = 0
+    #: Subject this cell belongs to on a multi-object sheet. Sorts ahead of the
+    #: facing, so each object's facings stay contiguous (vanilla's generator
+    #: layout: one object per run of four). Manifests without it are all group 0,
+    #: which keeps the old facing-major order for sheets that already shipped.
+    group: int = 0
 
 
 @dataclass
@@ -62,8 +67,9 @@ class Sheet:
 
 def build_sheet(name: str, cells: list[Cell], cell_size: tuple[int, int],
                 cols: int = DEFAULT_COLUMNS) -> Sheet:
-    """Assign sequential grid indices to cells, keeping facings contiguous."""
-    ordered = sorted(cells, key=lambda c: (c.facing_order, c.y, c.x))
+    """Assign sequential grid indices to cells: group-major, then facing, then
+    position -- so a subject's facings stay contiguous within its group."""
+    ordered = sorted(cells, key=lambda c: (c.group, c.facing_order, c.y, c.x))
     for i, cell in enumerate(ordered):
         cell.index = i
         if cell.image.size != cell_size:
@@ -153,5 +159,6 @@ def load_cells(directory: Path, manifest: dict) -> list[Cell]:
         cell = Cell(Image.open(path).convert("RGBA"), record.get("facing", "S"),
                     record.get("x", 0), record.get("y", 0), source=record["file"])
         cell.facing_order = facing_rank.get(cell.facing, 0)
+        cell.group = int(record.get("group", 0))
         cells.append(cell)
     return cells

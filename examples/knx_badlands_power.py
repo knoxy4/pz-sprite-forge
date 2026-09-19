@@ -76,8 +76,9 @@ def main() -> None:
     for obj in list(bpy.data.objects):
         bpy.data.objects.remove(obj, do_unlink=True)
 
-    bank = load("knx_battery_bank")
     gensets = load("knx_gensets")
+    gensets.make_texture()
+    mats = gensets.materials()
 
     F.register()
     scene = bpy.context.scene
@@ -88,17 +89,19 @@ def main() -> None:
     props.footprint_x = props.footprint_y = 1
     props.facings = "4"
     props.show_guide = False
+    props.contrast_boost = 1.0
+    props.toon_shading = True
 
     F.build_rig(bpy.context)
-    scene.cycles.samples = 256
+    scene.cycles.samples = 512
     scene.cycles.use_denoising = True
 
     order = [
-        ("bp_bank", lambda: bank.build()),
-        ("bp_propane", lambda: gensets.build("propane")),
-        ("bp_wasteoil", lambda: gensets.build("wasteoil")),
-        ("bp_scrap", lambda: gensets.build("scrap")),
-        ("bp_diesel", lambda: gensets.build("diesel")),
+        ("bp_bank", lambda: gensets.build("bank", mats)),
+        ("bp_propane", lambda: gensets.build("propane", mats)),
+        ("bp_wasteoil", lambda: gensets.build("wasteoil", mats)),
+        ("bp_scrap", lambda: gensets.build("scrap", mats)),
+        ("bp_diesel", lambda: gensets.build("diesel", mats)),
     ]
 
     manifests = []
@@ -114,9 +117,12 @@ def main() -> None:
     merged["isolate_tiles"] = True
     elements: dict = {}
     cells: list = []
-    for _, manifest in manifests:
+    for group, (_, manifest) in enumerate(manifests):
         elements.update(manifest.get("elements", {}))
-        cells.extend(manifest["cells"])
+        # The group stamp is what keeps each machine's four facings together
+        # on the sheet; without it pzforge sorts facing-major and the sheet
+        # cycles bank/propane/... inside each facing (the 2026-09-18 bug).
+        cells.extend(dict(cell, group=group) for cell in manifest["cells"])
     merged["elements"] = elements
     merged["cells"] = cells
 
