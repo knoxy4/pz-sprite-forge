@@ -59,10 +59,11 @@ class Builder:
         self.parts.append(obj)
         return obj
 
-    def box(self, name, centre, size, material, rot=(0.0, 0.0, 0.0)):
+    def box(self, name, centre, size, material, rot=(0.0, 0.0, 0.0), mode="XYZ"):
         bpy.ops.mesh.primitive_cube_add(size=1.0, location=(centre[0], centre[1], centre[2] + OFFSET_Z))
         obj = bpy.context.active_object
         obj.scale = size
+        obj.rotation_mode = mode
         obj.rotation_euler = rot
         return self._place(obj, name, material)
 
@@ -111,8 +112,12 @@ def materials() -> dict:
                                         swing=(0.82, 1.12)),
         "plank": F.forge_material("st_plank", "wood", (0.66, 0.50, 0.30), texture_path=grain,
                                   swing=(0.82, 1.12)),
-        "vinyl": fab("st_vinyl", (0.17, 0.17, 0.19)),
-        "vinyl_dark": t("st_vinyl_dark", (0.09, 0.09, 0.10)),
+        # car-seat vinyl: the first cut (0.17) read pale grey on the lit top faces
+        "vinyl": fab("st_vinyl", (0.115, 0.115, 0.135)),
+        "vinyl_dark": t("st_vinyl_dark", (0.060, 0.060, 0.068)),
+        "foam": t("st_foam", (0.78, 0.64, 0.30)),
+        "quilt": fab("st_quilt", (0.56, 0.30, 0.34)),
+        "quilt_band": t("st_quilt_band", (0.80, 0.74, 0.60)),
         "tape": t("st_tape", (0.58, 0.58, 0.56)),
         "blanket": fab("st_blanket", (0.58, 0.20, 0.07)),
         "blanket_stripe": t("st_blanket_stripe", (0.72, 0.62, 0.32)),
@@ -149,6 +154,20 @@ def leaning(b, name, y0, z0, size, angle, material, x=0.0):
     return b.box(name, centre, size, material, rot=(-angle, 0.0, 0.0))
 
 
+def on_face(b, name, hinge, depth, angle, s0, size, material, x=0.0, roll=0.0):
+    """A thin panel lying on the FRONT face of a slab built with leaning(): ``s0`` is
+    the distance up the slab from its hinge to the panel's bottom edge, ``roll``
+    turns it inside that face.  Patches, tape and stitching all hang off this."""
+    y0, z0 = hinge
+    w, t, h = size
+    up = (math.sin(angle), math.cos(angle))          # along the slab, in (y, z)
+    normal = (-math.cos(angle), math.sin(angle))     # out of the front face
+    d = s0 + h / 2
+    off = depth / 2 + t / 2
+    centre = (x, y0 + up[0] * d + normal[0] * off, z0 + up[1] * d + normal[1] * off)
+    return b.box(name, centre, size, material, rot=(-angle, roll, 0.0), mode="YXZ")
+
+
 def build_recliner(b: Builder, m: dict) -> None:
     pallet(b, m, "p0", 0.0)
     pallet(b, m, "p1", 0.13)
@@ -159,7 +178,8 @@ def build_recliner(b: Builder, m: dict) -> None:
     for sx in (-1, 1):
         b.box(f"bolster_{sx}", (sx * 0.23, 0.10, top + 0.19), (0.08, 0.48, 0.06), m["vinyl_dark"])
     recline = 0.42
-    back = leaning(b, "backrest", 0.33, top + 0.16, (0.52, 0.13, 0.62), recline, m["vinyl"])
+    hinge = (0.33, top + 0.16)
+    leaning(b, "backrest", hinge[0], hinge[1], (0.52, 0.13, 0.62), recline, m["vinyl"])
     for sx in (-1, 1):
         leaning(b, f"back_bolster_{sx}", 0.30, top + 0.16, (0.07, 0.10, 0.60), recline,
                 m["vinyl_dark"], x=sx * 0.235)
@@ -167,40 +187,58 @@ def build_recliner(b: Builder, m: dict) -> None:
     hy = 0.33 + 0.66 * math.sin(recline)
     b.box("headrest", (0, hy + 0.02, hz + 0.08), (0.26, 0.11, 0.15), m["vinyl"],
           rot=(-recline, 0, 0))
-    # duct tape: one strip across the seat, a cross patch on the back
-    b.box("tape_seat", (0.04, 0.02, top + 0.185), (0.50, 0.05, 0.006), m["tape"])
-    leaning(b, "tape_back_a", 0.262, top + 0.36, (0.20, 0.004, 0.05), recline, m["tape"], x=-0.08)
-    leaning(b, "tape_back_b", 0.262, top + 0.30, (0.05, 0.004, 0.20), recline, m["tape"], x=-0.08)
+    # the two chrome posts a car headrest rides on -- without them it floats
+    for sx in (-1, 1):
+        b.cyl(f"headrest_post_{sx}", (sx * 0.07, hy - 0.005, hz + 0.005), 0.009, 0.10,
+              m["steel"], rot=(-recline, 0, 0), vertices=8)
+    # a split in the vinyl with the foam coming through, taped over -- two strips
+    # rolled off square so it reads as a repair, never as a first-aid cross
+    on_face(b, "foam_back", hinge, 0.13, recline, 0.22, (0.10, 0.006, 0.16), m["foam"],
+            x=-0.09, roll=0.35)
+    on_face(b, "tape_back_a", hinge, 0.13, recline, 0.20, (0.05, 0.010, 0.26), m["tape"],
+            x=-0.13, roll=0.55)
+    on_face(b, "tape_back_b", hinge, 0.13, recline, 0.24, (0.05, 0.010, 0.22), m["tape"],
+            x=-0.04, roll=0.55)
+    b.box("foam_seat", (0.13, 0.04, top + 0.183), (0.12, 0.09, 0.006), m["foam"])
+    b.box("tape_seat", (0.13, 0.04, top + 0.186), (0.05, 0.30, 0.008), m["tape"],
+          rot=(0, 0, 0.45))
     # 2x4 arms on posts
     for sx in (-1, 1):
         b.box(f"arm_{sx}", (sx * 0.34, 0.06, top + 0.30), (0.08, 0.60, 0.05), m["plank"])
         b.box(f"arm_post_{sx}", (sx * 0.34, -0.20, top + 0.14), (0.07, 0.07, 0.28), m["plank"])
-    # blanket over the left arm
+    # wool blanket thrown over the left arm, two bands near the hem
     b.box("blanket_top", (-0.34, 0.06, top + 0.335), (0.14, 0.46, 0.018), m["blanket"])
     b.box("blanket_fall", (-0.415, 0.06, top + 0.18), (0.018, 0.44, 0.32), m["blanket"])
-    b.box("blanket_stripe", (-0.425, 0.06, top + 0.08), (0.004, 0.44, 0.03), m["blanket_stripe"])
-    # crate footrest with a pillow on it
+    for k, zz in enumerate((0.06, 0.11)):
+        b.box(f"blanket_band_{k}", (-0.425, 0.06, top + zz), (0.004, 0.44, 0.022),
+              m["blanket_stripe"])
+    # slatted crate footrest with a folded quilt on it
     b.box("crate", (0, -0.30, top + 0.09), (0.44, 0.24, 0.18), m["pallet"])
-    b.box("crate_slot", (0, -0.421, top + 0.11), (0.30, 0.004, 0.05), m["pallet_dark"])
-    b.box("footrest_pillow", (0, -0.30, top + 0.21), (0.40, 0.22, 0.07), m["pillow"])
+    for k, zz in enumerate((0.055, 0.125)):
+        b.box(f"crate_gap_{k}", (0, -0.421, top + zz), (0.42, 0.004, 0.012), m["pallet_dark"])
+        b.box(f"crate_gap_s{k}", (0.221, -0.30, top + zz), (0.004, 0.22, 0.012), m["pallet_dark"])
+    b.box("quilt", (0, -0.30, top + 0.205), (0.40, 0.22, 0.05), m["quilt"])
+    b.box("quilt_band", (0, -0.411, top + 0.205), (0.40, 0.004, 0.014), m["quilt_band"])
 
 
 def build_tire(b: Builder, m: dict) -> None:
-    for i, z in enumerate((0.10, 0.30)):
-        b.torus(f"tire_{i}", (0, 0, z), 0.30, 0.10, m["rubber"])
-        b.cyl(f"tread_{i}", (0, 0, z), 0.405, 0.12, m["rubber_tread"], vertices=28)
-    # tread cylinder sits just inside the torus bulge: it reads as the tread band
-    b.cyl("ply", (0, 0, 0.415), 0.36, 0.025, m["plank"], vertices=28)
-    b.cyl("cushion", (0, -0.02, 0.465), 0.33, 0.085, m["denim"], vertices=28)
+    # Torus only: the old full-radius tread cylinder turned the stack into black cans.
+    # Two fat tires touching, sidewall curve left to carry the read.
+    for i, z in enumerate((0.12, 0.355)):
+        b.torus(f"tire_{i}", (0, 0, z), 0.275, 0.118, m["rubber"])
+        b.torus(f"tire_rim_{i}", (0, 0, z + 0.08), 0.275, 0.012, m["rubber_tread"])
+    b.cyl("ply", (0, 0, 0.485), 0.37, 0.025, m["plank"], vertices=28)
+    b.cyl("cushion", (0, -0.02, 0.535), 0.34, 0.085, m["denim"], vertices=28)
+    b.torus("cushion_welt", (0, -0.02, 0.578), 0.335, 0.010, m["denim_dark"])
     for k, (x, y) in enumerate(((-0.12, -0.10), (0.12, -0.10), (0.0, 0.08))):
-        b.cyl(f"tuft_{k}", (x, y, 0.510), 0.018, 0.006, m["denim_dark"])
+        b.cyl(f"tuft_{k}", (x, y, 0.580), 0.018, 0.006, m["denim_dark"])
     lean = 0.18
     for sx in (-1, 1):
-        leaning(b, f"upright_{sx}", 0.30, 0.40, (0.07, 0.05, 0.66), lean, m["plank"], x=sx * 0.22)
-    for k, zz in enumerate((0.60, 0.95)):
+        leaning(b, f"upright_{sx}", 0.30, 0.47, (0.07, 0.05, 0.62), lean, m["plank"], x=sx * 0.22)
+    for k, zz in enumerate((0.66, 0.99)):
         leaning(b, f"cross_{k}", 0.30, zz, (0.52, 0.04, 0.06), lean, m["plank"])
-    leaning(b, "back_cushion", 0.26, 0.52, (0.46, 0.10, 0.42), lean, m["denim"])
-    for k, zz in enumerate((0.60, 0.86)):
+    leaning(b, "back_cushion", 0.26, 0.58, (0.46, 0.10, 0.40), lean, m["denim"])
+    for k, zz in enumerate((0.66, 0.90)):
         leaning(b, f"lash_{k}", 0.205, zz, (0.50, 0.015, 0.025), lean, m["rope"])
 
 
@@ -210,16 +248,62 @@ def build_patchwork(b: Builder, m: dict) -> None:
         b.box(f"seam_{k}", (0, -0.381, 0.07 + k * 0.10), (0.84, 0.004, 0.008), m["pallet_dark"])
     b.box("seat", (0, -0.02, 0.39), (0.60, 0.62, 0.14), m["tarp"])
     b.box("seat_patch", (0.12, -0.14, 0.462), (0.20, 0.18, 0.008), m["leather"])
-    b.box("seat_stitch", (0.12, -0.232, 0.462), (0.20, 0.004, 0.009), m["stitch"])
+    b.box("seat_patch2", (-0.15, 0.10, 0.462), (0.16, 0.14, 0.008), m["denim"])
+    b.box("seat_stitch", (0.12, -0.232, 0.463), (0.20, 0.004, 0.009), m["stitch"])
+    # One upholstered back -- the first cut was four separate cubes and read as a
+    # pile of blocks.  Canvas body, a rolled top, patches sewn onto the face.
     lean = 0.26
-    patches = [("tarp", -0.155, 0.46), ("leather", 0.155, 0.46),
-               ("canvas", -0.155, 0.74), ("denim", 0.155, 0.74)]
-    for k, (mat, x, z0) in enumerate(patches):
-        leaning(b, f"back_{k}", 0.30, z0, (0.30, 0.17, 0.28), lean, m[mat], x=x)
-    leaning(b, "back_seam_v", 0.214, 0.46, (0.012, 0.004, 0.56), lean, m["stitch"])
+    hinge = (0.30, 0.46)
+    depth = 0.17
+    leaning(b, "back", hinge[0], hinge[1], (0.62, depth, 0.54), lean, m["canvas"])
+    top_s = 0.54
+    b.cyl("back_roll", (0, hinge[0] + top_s * math.sin(lean),
+                        hinge[1] + top_s * math.cos(lean)), 0.09, 0.64, m["canvas"],
+          rot=(0.0, math.pi / 2, 0.0))
+    on_face(b, "patch_tarp", hinge, depth, lean, 0.03, (0.30, 0.008, 0.24), m["tarp"], x=-0.13)
+    on_face(b, "patch_leather", hinge, depth, lean, 0.24, (0.26, 0.008, 0.22), m["leather"],
+            x=0.14, roll=0.08)
+    on_face(b, "patch_denim", hinge, depth, lean, 0.30, (0.18, 0.008, 0.16), m["denim"],
+            x=-0.15, roll=-0.10)
+    for k, (xx, s0, w, h) in enumerate(((-0.13, 0.03, 0.30, 0.24), (0.14, 0.24, 0.26, 0.22))):
+        on_face(b, f"stitch_top_{k}", hinge, depth + 0.018, lean, s0 + h - 0.006,
+                (w, 0.004, 0.008), m["stitch"], x=xx)
     for sx in (-1, 1):
         b.box(f"arm_{sx}", (sx * 0.36, 0.02, 0.43), (0.12, 0.78, 0.26), m["leather"])
         b.box(f"arm_cap_{sx}", (sx * 0.36, 0.02, 0.565), (0.13, 0.78, 0.02), m["canvas"])
+
+
+# Soften upholstery.  Vanilla's chairs are all rounded edges; hard-edged boxes read as
+# crates.  Name prefix -> bevel width in metres; the longest matching prefix wins, and
+# only soft materials are touched (a wooden arm_post never gets rounded).
+SOFT = {
+    "seat": 0.035, "backrest": 0.040, "back_bolster": 0.025, "bolster": 0.022,
+    "headrest": 0.035, "quilt": 0.018, "blanket_top": 0.008,
+    "cushion": 0.030, "back_cushion": 0.030,
+    "back": 0.045, "arm_": 0.040, "arm_cap": 0.008,
+}
+SOFT_MATERIALS = ("vinyl", "quilt", "blanket", "denim", "canvas", "leather", "tarp")
+
+
+def soften(parts) -> None:
+    for obj in parts:
+        if obj.type != "MESH" or not obj.data.materials:
+            continue
+        if not any(k in obj.data.materials[0].name for k in SOFT_MATERIALS):
+            continue
+        hits = [p for p in SOFT if obj.name.startswith(p)]
+        if not hits:
+            continue
+        width = SOFT[max(hits, key=len)]
+        # Bake the scale so the bevel is the same width on every edge in world units.
+        bpy.ops.object.select_all(action="DESELECT")
+        obj.select_set(True)
+        bpy.context.view_layer.objects.active = obj
+        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+        mod = obj.modifiers.new("soft", "BEVEL")
+        mod.width = width
+        mod.segments = 3
+        mod.limit_method = "ANGLE"
 
 
 BUILDERS = {"recliner": build_recliner, "tire": build_tire, "patchwork": build_patchwork}
@@ -256,6 +340,7 @@ def main() -> None:
             continue
         b = Builder()
         BUILDERS[key](b, m)
+        soften(b.parts)
         names = [o.name for o in b.parts]
         for part in b.parts:
             part.parent = subject
