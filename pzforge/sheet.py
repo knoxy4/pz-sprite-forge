@@ -38,6 +38,12 @@ class Cell:
     #: layout: one object per run of four). Manifests without it are all group 0,
     #: which keeps the old facing-major order for sheets that already shipped.
     group: int = 0
+    #: Skip the style pass for this cell -- emissive overlays (TV screens,
+    #: lamp glows) are clean art that grain and contour passes would ruin.
+    raw: bool = False
+    #: Exact tile properties for this cell, bypassing core/sequence/Facing.
+    #: ``{}`` writes a property-less tile (vanilla overlay sprites have none).
+    tile_props: dict | None = None
 
 
 @dataclass
@@ -160,5 +166,7 @@ def load_cells(directory: Path, manifest: dict) -> list[Cell]:
                     record.get("x", 0), record.get("y", 0), source=record["file"])
         cell.facing_order = facing_rank.get(cell.facing, 0)
         cell.group = int(record.get("group", 0))
+        cell.raw = bool(record.get("raw", False))
+        cell.tile_props = record.get("tile_props")
         cells.append(cell)
     return cells

@@ -213,6 +213,8 @@ def cmd_build(args: argparse.Namespace) -> int:
         isolated = bool(manifest.get("isolate_tiles"))
         by_facing: dict[tuple, list[int]] = {}
         for i, cell in enumerate(cells):
+            if cell.raw:
+                continue                 # emissive overlay: ships as rendered
             by_facing.setdefault((cell.facing, i if isolated else None),
                                  []).append(i)
         for (facing, _), group in by_facing.items():
@@ -380,6 +382,9 @@ def cmd_build(args: argparse.Namespace) -> int:
     sequence = override.get("sequence") or sequence
     tiles = []
     for index, cell in enumerate(sheet.cells):
+        if cell.tile_props is not None:
+            tiles.append(Tile(dict(cell.tile_props)))
+            continue
         tile_props = dict(props)
         if sequence:
             step = dict(sequence[index % len(sequence)])

@@ -348,6 +348,10 @@ def test_sheet_groups() -> None:
     order = [c.source for c in build_sheet("t", legacy, (4, 8)).cells]
     check("ungrouped manifests keep the old facing-major order",
           order[:2] == ["0_S", "1_S"], str(order))
+    raw = Cell(blank(), "S", 0, 0, source="screen", raw=True, tile_props={})
+    check("raw/tile_props fields default off", Cell(blank()).raw is False
+          and Cell(blank()).tile_props is None)
+    check("raw cell keeps explicit empty props", raw.raw and raw.tile_props == {})
 
 
 if __name__ == "__main__":
