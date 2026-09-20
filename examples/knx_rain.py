@@ -299,7 +299,7 @@ def build_wash(b: Builder, m: dict) -> None:
     b.box("rag", (-0.33, -0.12, C + 0.03), (0.14, 0.12, 0.012), m["hose"])
 
 
-def build_shower(b: Builder, m: dict) -> None:
+def build_shower(b: Builder, m: dict, closed: bool = False) -> None:
     """Makeshift shower: a black drum up top (sun-warmed), gravity down to a pull-chain
     head, pallet floor, tarp on the back and far side, a curtain half drawn on the front."""
     H = 1.82
@@ -325,11 +325,19 @@ def build_shower(b: Builder, m: dict) -> None:
     b.box("tarp_side", (-0.425, 0, (H - 0.08 + 0.25) / 2), (0.012, 0.86, H - 0.33), m["valve_blue"])
     for k, zz in enumerate((0.55, 1.05)):   # tie-downs
         b.box(f"tie_b_{k}", (0.43, 0.43, zz), (0.03, 0.03, 0.03), m["hose"])
-    # front curtain on a rod, bunched to the near-left: stripes read as folds
+    # front curtain on a rod.  Open: bunched to the near-left (stripes read as folds).
+    # Closed: drawn right across the front -- the KNX_ShowerClosed entity's sprite.
     b.cyl("rod", (0, -0.44, H - 0.10), 0.012, 0.90, m["brass"], rot=(0, math.pi / 2, 0))
-    for k in range(4):
-        b.box(f"curtain_{k}", (-0.40 + k * 0.05, -0.445 + (k % 2) * 0.02, (H - 0.12 + 0.35) / 2),
-              (0.05, 0.02, H - 0.47), m["valve_blue"] if k % 2 else m["hdpe_blue_dark"])
+    if closed:
+        n = 16
+        for k in range(n):
+            x = -0.42 + k * (0.84 / (n - 1))
+            b.box(f"curtain_{k}", (x, -0.445 + (k % 2) * 0.018, (H - 0.12 + 0.30) / 2),
+                  (0.058, 0.02, H - 0.42), m["valve_blue"] if k % 2 else m["hdpe_blue_dark"])
+    else:
+        for k in range(4):
+            b.box(f"curtain_{k}", (-0.40 + k * 0.05, -0.445 + (k % 2) * 0.02, (H - 0.12 + 0.35) / 2),
+                  (0.05, 0.02, H - 0.47), m["valve_blue"] if k % 2 else m["hdpe_blue_dark"])
     # feed: out of the drum floor, down the back post, over to a head in the middle
     # The head hangs toward the open front-right corner: centred, the platform edge hid
     # it from the game camera.  Feed runs down the near-right post, then inward.
@@ -345,10 +353,13 @@ def build_shower(b: Builder, m: dict) -> None:
 
 
 BUILDERS = {"drum": build_drum, "stand": build_stand, "twin": build_twin,
-            "rack": build_rack, "wash": build_wash, "shower": build_shower}
+            "rack": build_rack, "wash": build_wash, "shower": build_shower,
+            "showerc": lambda b, m: build_shower(b, m, closed=True)}
 PIECES += [
     ("wash", "Wash Station", ("S", "E", "N", "W"), 0.0),
     ("shower", "Makeshift Shower", ("S", "E", "N", "W"), 0.0),
+    # group 6, sheet 18-21: the same stall with the curtain drawn (KNX_ShowerClosed)
+    ("showerc", "Makeshift Shower", ("S", "E", "N", "W"), 0.0),
 ]
 
 
@@ -402,9 +413,12 @@ def main() -> None:
             tile = dict(RAIN_PROPS, CustomName=cname)
             if len(facings) > 1:
                 tile["Facing"] = f
-            if key in ("rack", "shower"):
+            if key == "rack":
                 tile.pop("solidtrans", None)
                 tile["solid"] = ""
+            elif key in ("shower", "showerc"):
+                # walk-in: no solid/solidtrans, so a player can stand in the stall
+                tile.pop("solidtrans", None)
             cells.append(dict(cell, group=group, tile_props=tile))
         print(f"== {key}: {len(names)} parts, {len(facings)} facing(s)")
 
