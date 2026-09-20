@@ -332,6 +332,69 @@ def test_ids() -> None:
     check("chosen id is above the reserved floor", free >= modgen.TILEDEF_ID_FLOOR)
 
 
+def test_tiledef_rules(tmp: Path) -> None:
+    print("\n== tiledef collision rules ==")
+    root = tmp / "fake_mods"
+
+    def mod(folder: str, mod_id: str, sheet: str, tid: int, extra: str = "") -> None:
+        d = root / folder / "42"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "mod.info").write_text(
+            f"name={mod_id}\nid={mod_id}\ntiledef={sheet} {tid}\npack={sheet}\n{extra}",
+            encoding="utf-8")
+
+    mod("A", "ModA", "sheet_a", 9001)
+    mod("B", "ModB", "sheet_b", 9001)
+    mod("V1", "Variant1", "sheet_v1", 9002, "incompatible=\\Variant2,\\Other\n")
+    mod("V2", "Variant2", "sheet_v2", 9002, "incompatible=\\Variant1\n")
+    mod("T1", "Twin1", "shared_sheet", 9003)
+    mod("T2", "Twin2", "shared_sheet", 9003)
+    mod("S", "ClosetBuild", "badlands_closet_01", 9004)
+    mod("X", "OneSidedX", "sheet_x", 9005, "incompatible=\\OneSidedY\n")
+    mod("Y", "OneSidedY", "sheet_y", 9005)
+    paths = [root]
+
+    taken = modgen.used_tiledef_ids(paths)
+    dupes = modgen.duplicate_tiledef_ids(paths)
+    shared = modgen.shared_tiledef_ids(paths)
+    check("different sheets that can load together are a collision",
+          9001 in dupes, str(dupes))
+    check("mutually incompatible variants are not a collision", 9002 not in dupes)
+    check("incompatible variants are reported as shared", 9002 in shared, str(shared))
+    check("same sheet from two mods is shared, not a collision",
+          9003 in shared and 9003 not in dupes)
+    check("one-sided incompatible= still excuses the pair", 9005 not in dupes)
+    check("pre-merge scratch sheets are ignored", 9004 not in taken, str(sorted(taken)))
+    check("scratch sheets stay visible on request",
+          9004 in modgen.used_tiledef_ids(paths, skip_intermediates=False))
+    check("incompatible= list is split and unslashed",
+          modgen.mod_incompatibilities(paths).get("Variant1") == {"Variant2", "Other"},
+          str(modgen.mod_incompatibilities(paths).get("Variant1")))
+
+    empty = tmp / "no_mods"
+    empty.mkdir(exist_ok=True)
+    lo, hi = modgen.BADLANDS_BLOCK
+    free = modgen.free_tiledef_id([empty])
+    check("reserved block ids are never handed out",
+          free not in modgen.BADLANDS_RESERVED, f"picked {free}")
+    check("free id stays inside the block", lo <= free <= hi, f"picked {free}")
+    check("census ids are skipped even when free locally",
+          modgen.free_tiledef_id([empty], start=2002, block=(2002, 2010)) != 2002)
+    check("census records the 2002 overlap", modgen.census_holder(2002) == "MidRiver")
+    conflicts = modgen.census_conflicts({
+        2002: ["BadlandsClutter:badlandsclutter_tv_01"],
+        3333: ["simonMDsTiles:SimonMDsTiles"],
+        7811: ["Neat_Building:NeatBuilding_Tiles"],
+    })
+    check("census flags a different mod on a known id", 2002 in conflicts, str(conflicts))
+    check("census does not flag a mod against its own entry",
+          3333 not in conflicts and 7811 not in conflicts, str(sorted(conflicts)))
+    check("no census id falls inside the Badlands block",
+          not any(lo <= t <= hi for t in modgen.KNOWN_WORKSHOP_IDS))
+    check("every reservation sits inside the block",
+          all(lo <= t <= hi for t in modgen.BADLANDS_RESERVED))
+
+
 def test_sheet_groups() -> None:
     print("\n== sheet grouping ==")
     from pzforge.sheet import Cell, build_sheet
@@ -360,6 +423,7 @@ if __name__ == "__main__":
         test_style()
         test_pipeline(tmp)
         test_ids()
+        test_tiledef_rules(tmp)
         test_sheet_groups()
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

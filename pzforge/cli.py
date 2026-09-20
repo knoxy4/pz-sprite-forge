@@ -412,14 +412,29 @@ def cmd_build(args: argparse.Namespace) -> int:
 
     # --- write the mod ----------------------------------------------------
     tiledef_id = args.tiledef_id
+    lo, hi = modgen.BADLANDS_BLOCK
     if tiledef_id is None:
+        scanned = modgen.mod_search_paths()
         tiledef_id = modgen.free_tiledef_id()
-        print(f"tiledef id: {tiledef_id} (first free id across installed mods)")
+        print(f"tiledef id: {tiledef_id} (first free in the {lo}-{hi} block; "
+              f"scanned {len(scanned)} mod root(s))")
     else:
-        clashes = modgen.used_tiledef_ids().get(tiledef_id)
+        # Rebuilding a mod that is already installed would otherwise report its own
+        # previous build as the clash.
+        clashes = [h for h in modgen.used_tiledef_ids().get(tiledef_id, [])
+                   if h.split(":", 1)[0] != args.mod_id]
         if clashes:
             print(f"warning: tiledef id {tiledef_id} is already used by "
                   f"{', '.join(clashes[:3])}", file=sys.stderr)
+        known = modgen.census_holder(tiledef_id)
+        if known:
+            print(f"warning: tiledef id {tiledef_id} is claimed on the Workshop by "
+                  f"{known} -- free on this box, not free for subscribers",
+                  file=sys.stderr)
+        if not lo <= tiledef_id <= hi:
+            print(f"warning: tiledef id {tiledef_id} is outside the Badlands block "
+                  f"{lo}-{hi}, so nothing reserves it against a third-party mod",
+                  file=sys.stderr)
 
     layout = modgen.ModLayout.create(Path(args.out), args.mod_id,
                                      None if args.b41 else args.build)
@@ -675,12 +690,66 @@ def cmd_preview(args: argparse.Namespace) -> int:
 
 
 def cmd_ids(args: argparse.Namespace) -> int:
+    roots = modgen.mod_search_paths()
+    print(f"scanning {len(roots)} mod root(s):")
+    for root in roots:
+        print(f"   {root}")
+
+    skipped = modgen.intermediate_sheets()
+    print(f"ignoring {len(skipped)} pre-merge scratch sheet(s): "
+          f"{', '.join(sorted(skipped))}")
+
     taken = modgen.used_tiledef_ids()
-    print(f"{len(taken)} tiledef id(s) claimed by installed mods")
+    print(f"\n{len(taken)} tiledef id(s) claimed by installed mods")
     for tid in sorted(taken)[:args.limit]:
         print(f"   {tid:<7} {', '.join(sorted(set(taken[tid]))[:4])}")
-    print(f"\nfirst free id at or above {modgen.TILEDEF_ID_FLOOR}: "
-          f"{modgen.free_tiledef_id()}")
+
+    dupes = modgen.duplicate_tiledef_ids()
+    if dupes:
+        print(f"\nCOLLISIONS -- {len(dupes)} id(s) held by mods that can load "
+              "together. Whichever loads first keeps the number; the other loses "
+              "its sprites, silently.")
+        for tid in sorted(dupes):
+            print(f"   {tid:<7} {', '.join(dupes[tid])}")
+    else:
+        print("\nno id is contested by two mods that can load together")
+
+    shared = modgen.shared_tiledef_ids()
+    if shared:
+        print("\nshared, not a fault (same sheet, or mutually exclusive variants "
+              "via incompatible=):")
+        for tid in sorted(shared):
+            print(f"   {tid:<7} {', '.join(shared[tid])}")
+
+    # An id can be free on this box and still be spoken for on the Workshop.
+    census_hits = modgen.census_conflicts(taken)
+    if census_hits:
+        print(f"\nCENSUS OVERLAP -- {len(census_hits)} locally claimed id(s) also "
+              "belong to a different Workshop mod. Harmless until a subscriber "
+              "runs both.")
+        for tid in sorted(census_hits):
+            holders, known = census_hits[tid]
+            print(f"   {tid:<7} {', '.join(holders[:3])}   vs Workshop: {known}")
+    else:
+        print("\nno locally claimed id belongs to a different mod in the census")
+
+    lo, hi = modgen.BADLANDS_BLOCK
+    mine = sorted(t for t in taken if lo <= t <= hi)
+    print(f"\nBadlands block {lo}-{hi}: {len(mine)} of {hi - lo + 1} used "
+          f"({len(modgen.KNOWN_WORKSHOP_IDS)} Workshop ids in census, "
+          f"{sum(1 for t in modgen.KNOWN_WORKSHOP_IDS if lo <= t <= hi)} inside "
+          "the block)")
+    for tid in mine:
+        print(f"   {tid:<7} {', '.join(sorted(set(taken[tid]))[:4])}")
+    pending = {t: why for t, why in modgen.BADLANDS_RESERVED.items() if t not in taken}
+    if pending:
+        print(f"reserved, not yet installed ({len(pending)}):")
+        for tid in sorted(pending):
+            print(f"   {tid:<7} {pending[tid]}")
+    try:
+        print(f"next free in block: {modgen.free_tiledef_id()}")
+    except ValueError as exc:
+        print(f"next free in block: NONE -- {exc}")
     return 0
 
 
@@ -712,7 +781,8 @@ def build_parser() -> argparse.ArgumentParser:
     b.add_argument("--page-size", type=int, default=sheetmod.DEFAULT_PAGE_SIZE)
     b.add_argument("--tileset-id", type=int, default=1)
     b.add_argument("--tiledef-id", type=int, default=None,
-                   help="global tiledef id; defaults to the first free one")
+                   help="global tiledef id; defaults to the first free id in "
+                        "the Badlands block (see pzforge ids)")
     b.add_argument("--build", default="42", help="B42 version subfolder name")
     b.add_argument("--b41", action="store_true", help="use the flat B41 mod layout")
     b.add_argument("--style-strength", type=float, default=0.6,
@@ -842,7 +912,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="path to the game's media folder")
     p.set_defaults(func=cmd_preview)
 
-    d = sub.add_parser("ids", help="list tiledef ids already claimed by installed mods")
+    d = sub.add_parser("ids", help="list claimed tiledef ids, collisions and "
+                                   "Badlands block occupancy")
     d.add_argument("--limit", type=int, default=30)
     d.set_defaults(func=cmd_ids)
     return parser
