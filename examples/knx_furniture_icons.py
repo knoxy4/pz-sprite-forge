@@ -46,6 +46,15 @@ ICONS = {
     "KNX_RainRack": "Build_KNXRainRack",
     "KNX_WashStation": "Build_KNXWashStation",
     "KNX_Shower": "Build_KNXShower",
+    "KNX_VCRStack": "Build_KNXVCRStack",
+    "KNX_TapeRack": "Build_KNXTapeRack",
+    "KNX_MedicalTable": "Build_KNXMedicalTable",
+    "KNX_ClosetRod": "Build_KNXClosetRod",
+    "KNX_LinenShelf": "Build_KNXLinenShelf",
+    "KNX_BootCubby": "Build_KNXBootCubby",
+    "KNX_OverheadShelf": "Build_KNXOverheadShelf",
+    "KNX_CoatPegs": "Build_KNXCoatPegs",
+    "KNX_CrateWardrobe": "Build_KNXCrateWardrobe",
 }
 
 ENTITY = re.compile(r"^\s*entity\s+(\w+)\s*$", re.M)
@@ -68,8 +77,21 @@ def south_sprites() -> dict[str, str]:
     return out
 
 
+#: Sheets whose pieces carry fill stages, and how many each piece carries.
+#: An entity's faces point at the empty sprite, because a thing you just built
+#: is empty -- but an empty carcass is a poor icon, so the icon comes off the
+#: fullest one, index - index % stages. Keep this in step with
+#: KNXBookcase.SHEETS in the mod.
+FILL_SHEETS = {"badlands_bookcase_01": 3, "badlands_shelving_01": 3,
+               "badlands_theater_01": 10, "badlands_medical_01": 10,
+               "badlands_closet_01": 4}
+
+
 def cell(sprite: str) -> Image.Image:
     sheet_name, index = sprite.rsplit("_", 1)
+    stages = FILL_SHEETS.get(sheet_name)
+    if stages:
+        index = str(int(index) - int(index) % stages)
     sheet = Image.open(MOD / f"{sheet_name}.png").convert("RGBA")
     cols = sheet.width // CELL_W
     i = int(index)
