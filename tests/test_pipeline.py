@@ -231,7 +231,10 @@ def test_pipeline(tmp: Path) -> None:
 
     rc = cli_main(["build", str(cells), "--out", str(out), "--mod-id", "ForgeTest",
                    "--mod-name", "Forge Test Tiles", "--preset", "furniture",
-                   "--prop", "CustomName=Test Bench", "--tiledef-id", "9911",
+                   # 8150 is a throwaway id inside the engine's 100-8189 range. It
+                   # was 9911, which build now refuses: the game would not load a
+                   # mod carrying it at all.
+                   "--prop", "CustomName=Test Bench", "--tiledef-id", "8150",
                    "--no-style"])
     check("build exits cleanly", rc == 0, f"rc={rc}")
 
@@ -243,7 +246,7 @@ def test_pipeline(tmp: Path) -> None:
     check("grid sheet written", (root / "media" / "forgetest_01.png").exists())
 
     info = (root / "mod.info").read_text()
-    check("mod.info declares the tiledef", "tiledef=forgetest_01 9911" in info, info.strip())
+    check("mod.info declares the tiledef", "tiledef=forgetest_01 8150" in info, info.strip())
     check("mod.info declares the pack", "pack=forgetest_01" in info)
 
     # --- the pack must survive a round trip through the game's own format ---
@@ -285,7 +288,7 @@ def test_pipeline(tmp: Path) -> None:
     # not -- a changed alpha channel means a changed collision/render footprint.
     styled_out = tmp / "dist_styled"
     cli_main(["build", str(cells), "--out", str(styled_out), "--mod-id", "ForgeStyled",
-              "--tiledef-id", "9912", "--style-strength", "0.6"])
+              "--tiledef-id", "8151", "--style-strength", "0.6"])
     styled = TexturePack.read(styled_out / "ForgeStyled" / "42" / "media" /
                               "texturepacks" / "forgetest_01.pack")
     alpha_changed = []
@@ -393,6 +396,19 @@ def test_tiledef_rules(tmp: Path) -> None:
           not any(lo <= t <= hi for t in modgen.KNOWN_WORKSHOP_IDS))
     check("every reservation sits inside the block",
           all(lo <= t <= hi for t in modgen.BADLANDS_RESERVED))
+    # B42.20 refuses the whole mod outside 100-8189 (measured by headless boot,
+    # 2026-09-20). The block and everything it hands out must stay inside it.
+    check("the whole block is inside the engine's legal range",
+          modgen.TILEDEF_ID_MIN <= lo and hi <= modgen.TILEDEF_ID_MAX,
+          f"block {lo}-{hi} vs engine {modgen.TILEDEF_ID_MIN}-{modgen.TILEDEF_ID_MAX}")
+    check("a free id is always engine-legal",
+          modgen.TILEDEF_ID_MIN <= free <= modgen.TILEDEF_ID_MAX, f"picked {free}")
+    illegal = False
+    try:
+        modgen.free_tiledef_id([empty], start=9000, block=(9000, 9010))
+    except ValueError:
+        illegal = True
+    check("an out-of-range block raises instead of returning a dead id", illegal)
 
 
 def test_sheet_groups() -> None:

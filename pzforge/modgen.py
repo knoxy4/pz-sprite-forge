@@ -68,30 +68,40 @@ MOD_SEARCH_PATHS = mod_search_paths()
 #: Ids below this are vanilla/reserved territory.
 TILEDEF_ID_FLOOR = 2000
 
+#: The engine's hard range for a tiledef file number. Outside it the game refuses
+#: the whole mod: "tiledef=... file number must be from 100 to 8189" from
+#: ChooseGameInfo.readModInfoAux, then "MOD NOT LOADED". Measured on B42.20 by a
+#: pzkit headless boot on 2026-09-20 -- the census lists ids up to 15000, so those
+#: are B41-era or simply broken on B42. Nothing above this can ship.
+TILEDEF_ID_MIN = 100
+TILEDEF_ID_MAX = 8189
+
 #: The low range (1300-3600) is dense with map and build-menu packs, so Badlands
 #: claims a block of its own instead of picking a "free-looking" low number.
-#: 8470-8499 is a 30-slot window untouched by anything in KNOWN_WORKSHOP_IDS: the
-#: nearest neighbours are 8103 (Simple Blacksmithing) below and 8676 (LightSwitch
-#: Overhaul) above. Ids far higher than this ship and work -- 8912, 9476, 13244,
-#: 15000 -- so there is no ceiling concern. Assignments live in the project's
-#: tiledef registry doc, not in code.
-BADLANDS_BLOCK = (8470, 8499)
+#: 6470-6499 sits in the widest hole in KNOWN_WORKSHOP_IDS below the engine cap
+#: (6264-6766: nearest neighbours 6263 Battlefield Louisville and 6767 Greenleaf),
+#: well clear of the cap itself, which is where anyone who has read the error
+#: message lands. Was 8470-8499 until the boot above proved 8470 unloadable.
+#: Assignments live in the project's tiledef registry doc, not in code.
+BADLANDS_BLOCK = (6470, 6499)
 
 #: Block ids already spoken for but not visible to used_tiledef_ids(), which only
 #: sees installed mods. Without this the forge hands the first unpublished
 #: assignment straight back out to the next new sheet. Keep in step with the
 #: tiledef registry doc; the registry is authoritative.
 BADLANDS_RESERVED: dict[int, str] = {
-    8470: "KNXCookLab (knx_cooklab_01) -- assigned, unpublished",
-    8471: "FullBookcases (badlands_bookcase_01) -- moves here at wipe",
-    8472: "BadlandsPower (badlands_power_01) -- moves here at wipe",
+    6470: "KNXDrugs (knx_cooklab_01) -- cook lab, KNXDrugs 0.9.0",
+    6471: "FullBookcases (badlands_bookcase_01) -- moves here at wipe",
+    6472: "BadlandsPower (badlands_power_01) -- moves here at wipe",
 }
 
 #: Community census of tiledef ids above 1300, keyed id -> mod. Used to check a
 #: candidate id against the wider Workshop rather than only what happens to be
 #: installed on this box -- used_tiledef_ids() can only see local mods, and "free
 #: here" is not "free". Operator-supplied, not independently verified; treat a hit
-#: as a reason to pick another number, not as proof of a live collision.
+#: as a reason to pick another number, not as proof of a live collision. Entries
+#: above TILEDEF_ID_MAX cannot load on B42.20 and are kept only for completeness --
+#: they are NOT evidence that high ids work.
 def _census(entries: dict[tuple[int, ...], str]) -> dict[int, str]:
     return {i: mod for ids, mod in entries.items() for i in ids}
 
@@ -305,6 +315,10 @@ def free_tiledef_id(search_paths: list[Path] | None = None,
             raise ValueError(
                 "tiledef block %d-%d is full; widen modgen.BADLANDS_BLOCK and record "
                 "the change in the tiledef registry" % (block[0], block[1]))
+    if not TILEDEF_ID_MIN <= candidate <= TILEDEF_ID_MAX:
+        raise ValueError(
+            "tiledef id %d is outside the engine's %d-%d range; the game would refuse "
+            "the whole mod" % (candidate, TILEDEF_ID_MIN, TILEDEF_ID_MAX))
     return candidate
 
 

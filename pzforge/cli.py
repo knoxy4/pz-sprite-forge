@@ -426,6 +426,14 @@ def cmd_build(args: argparse.Namespace) -> int:
         if clashes:
             print(f"warning: tiledef id {tiledef_id} is already used by "
                   f"{', '.join(clashes[:3])}", file=sys.stderr)
+        # Hard stop, not a warning: outside this range the engine refuses the whole
+        # mod ("file number must be from 100 to 8189" -> MOD NOT LOADED), so a build
+        # that shipped one would be dead on arrival.
+        if not modgen.TILEDEF_ID_MIN <= tiledef_id <= modgen.TILEDEF_ID_MAX:
+            print(f"error: tiledef id {tiledef_id} is outside the engine's "
+                  f"{modgen.TILEDEF_ID_MIN}-{modgen.TILEDEF_ID_MAX} range; the game "
+                  "would refuse to load the mod at all", file=sys.stderr)
+            return 2
         known = modgen.census_holder(tiledef_id)
         if known:
             print(f"warning: tiledef id {tiledef_id} is claimed on the Workshop by "
