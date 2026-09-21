@@ -3,10 +3,15 @@
 
   "_sheet_order": "Verified by pixel-match (tools/sheet_order.py), not assumed: the manifest lists cells grouped by piece, but the packer regroups by facing, so the sheet runs glassware/burner/jugs within each of S,E,N,W. index % 3 therefore selects the piece: 0 glassware, 1 burner, 2 jugs.",
 
+  "_tabletop": "These are tabletop props: the art is drawn at counter height (sprite base y=170 in the 128x256 frame, identical to vanilla's microwave appliances_cooking_01_24). So they take the microwave's own flags. IsTableTop + IsSurfaceOffset + Surface=34 make the pick-up/place path set renderYOffset = tableHeight - 34 (ISMoveableSpriteProps ~2314), i.e. flush on any table. BlocksPlacement is removed because ISBuildIsoEntity:isValidPerSquare (~335) refuses a BlocksPlacement tile on any solid square, which is every counter; KNXDrugs' OnIsValid (KNXDrugsCookLab.OnIsValid) restricts building to tables instead. Placed on the floor this art floats -- measured in game 2026-09-21.",
+
   "core": {
-    "BlocksPlacement": "",
+    "BlocksPlacement": null,
     "CanScrap": "",
     "IsMoveAble": "",
+    "IsTableTop": "",
+    "IsSurfaceOffset": "",
+    "Surface": "34",
     "ScrapSize": "Small",
     "GroupName": "Cook Lab",
     "Material": null
