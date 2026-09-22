@@ -6,3 +6,5 @@ retouch/
 __pycache__/
 *.pyc
 *.blend1
+# Third-party source models (licensed per model; credit lives in the recipe).
+assets/

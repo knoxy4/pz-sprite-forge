@@ -62,6 +62,42 @@ class SpriteSource:
         return cell
 
 
+
+def custom_objects(custom_pack: Path, mine: "SpriteSource") -> list[list[tuple[int, int, Image.Image]]]:
+    """Group a pack's sprites into placeable objects.
+
+    Multi-tile pieces carry ``SpriteGridPos`` in the sheet's ``.tiles`` (which
+    sits one folder above ``texturepacks/``). Tiles sharing a Facing and a name
+    are one object, laid out on their grid offsets -- previewing them as loose
+    tiles scatters the halves across the floor. Without a ``.tiles`` every
+    sprite is its own single-tile object, as before.
+    """
+    from .tiledef import TileDefinitions
+
+    singles = [[(0, 0, img)] for img in (mine.get(n) for n in mine.names()) if img]
+    tiles_path = custom_pack.parent.parent / (custom_pack.stem + ".tiles")
+    if not tiles_path.exists():
+        return singles
+    groups: dict[tuple, list] = {}
+    loose: list = []
+    for ts in TileDefinitions.read(tiles_path).tilesets:
+        for index in range(ts.cols * ts.rows):
+            props = dict(ts.at(index % ts.cols, index // ts.cols).props)
+            img = mine.get(f"{ts.name}_{index}")
+            if img is None:
+                continue
+            pos = props.get("SpriteGridPos")
+            if not pos:
+                loose.append([(0, 0, img)])
+                continue
+            gx, gy = (int(v) for v in pos.split(","))
+            key = (props.get("GroupName"), props.get("CustomName"), props.get("Facing"))
+            runs = groups.setdefault(key, [[]])
+            if any((gx, gy) == (x, y) for x, y, _ in runs[-1]):
+                runs.append([])      # same slot again: the next object of this name
+            runs[-1].append((gx, gy, img))
+    return [run for runs in groups.values() for run in runs] + loose
+
 def compose(placements: list[tuple[int, int, Image.Image]], cols: int, rows: int,
             background: tuple[int, int, int, int] = (26, 28, 32, 255)) -> Image.Image:
     """Paint tiles onto an isometric grid, back to front."""
@@ -100,8 +136,7 @@ def build_scene(custom_pack: Path, cols: int = 5, rows: int = 5,
     if vanilla_objects is None:
         vanilla_objects = [n for n in vanilla.names("furniture_seating_indoor_01_")][:6]
     reference = [img for img in (vanilla.get(n) for n in vanilla_objects) if img]
-    custom = [mine.get(n) for n in mine.names()]
-    custom = [c for c in custom if c]
+    objects = custom_objects(custom_pack, mine)
 
     rng = random.Random(seed)
     placements: list[tuple[int, int, Image.Image]] = []
@@ -109,14 +144,34 @@ def build_scene(custom_pack: Path, cols: int = 5, rows: int = 5,
         for j in range(rows):
             placements.append((i, j, floor))
 
-    # Chequerboard the two sources so every custom tile has a vanilla neighbour.
-    slot = 0
-    for i in range(cols):
-        for j in range(rows):
-            if (i + j) % 2:
-                continue
-            pool = custom if (slot % 2 == 0 or not reference) else reference
-            placements.append((i, j, pool[(slot // 2) % len(pool)]))
-            slot += 1
+    if all(len(o) == 1 for o in objects):
+        # Chequerboard the two sources so every custom tile has a vanilla neighbour.
+        custom = [o[0][2] for o in objects]
+        slot = 0
+        for i in range(cols):
+            for j in range(rows):
+                if (i + j) % 2:
+                    continue
+                pool = custom if (slot % 2 == 0 or not reference) else reference
+                placements.append((i, j, pool[(slot // 2) % len(pool)]))
+                slot += 1
+    else:
+        # Multi-tile: each object on its own anchor, a gap of one tile around it,
+        # vanilla references in the gaps that no object covers.
+        taken: set = set()
+        anchors = [(i, j) for j in range(0, rows, 3) for i in range(0, cols, 3)]
+        for (ai, aj), obj in zip(anchors, objects):
+            for gx, gy, img in obj:
+                placements.append((ai + gx, aj + gy, img))
+                taken.add((ai + gx, aj + gy))
+        slot = 0
+        for i in range(cols):
+            for j in range(rows):
+                if (i, j) in taken or (i + j) % 2 == 0 or not reference:
+                    continue
+                if any((i + di, j + dj) in taken for di in (-1, 0, 1) for dj in (-1, 0, 1)):
+                    continue
+                placements.append((i, j, reference[slot % len(reference)]))
+                slot += 1
     rng.shuffle(placements[:0])  # keep ordering deterministic; shuffle nothing
     return compose(placements, cols, rows)

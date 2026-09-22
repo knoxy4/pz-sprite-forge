@@ -838,6 +838,43 @@ def toon_material(name: str, paint=None, texture_path=None, dark=None, light=Non
     return mat
 
 
+def toon_from_pbr(src: bpy.types.Material, soft=False) -> bpy.types.Material:
+    """Toon-shade an imported PBR material, keeping its own base colour.
+
+    ``toon_material`` takes flat paint or a greyscale detail ramp; an imported
+    model (glTF/FBX) carries its livery, grille and lamps in a base-colour
+    image instead. This walks the Principled BSDF's Base Color back through any
+    colour nodes to that image and swaps it in for the flat paint, so the
+    image is multiplied by the same stepped light as every forged part.
+    Flat-coloured materials keep their colour. ``soft`` for rubber/fabric.
+    """
+    bsdf = next((n for n in src.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None) \
+        if src.use_nodes else None
+    image, colour = None, (0.5, 0.5, 0.5)
+    if bsdf is not None:
+        sock = bsdf.inputs["Base Color"]
+        if sock.is_linked:
+            n = sock.links[0].from_node
+            while n.type != "TEX_IMAGE" and n.inputs and any(i.is_linked for i in n.inputs):
+                n = next(i for i in n.inputs if i.is_linked).links[0].from_node
+            if n.type == "TEX_IMAGE":
+                image = n.image
+        else:
+            colour = tuple(sock.default_value[:3])
+    mat = toon_material(f"toon_{src.name}", colour,
+                          shading="soft" if soft else "step")
+    if image is not None:
+        nodes, links = mat.node_tree.nodes, mat.node_tree.links
+        rgb = next(n for n in nodes if n.type == "RGB")
+        mix = next(n for n in nodes if n.type == "MIX")
+        tex = nodes.new("ShaderNodeTexImage")
+        tex.image = image
+        tex.interpolation = "Cubic"
+        links.new(tex.outputs["Color"], mix.inputs["A"])
+        nodes.remove(rgb)
+    return mat
+
+
 def use_eevee(scene) -> None:
     """Toon shading needs Shader to RGB, which only EEVEE evaluates.
 
