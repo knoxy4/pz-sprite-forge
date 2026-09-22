@@ -93,6 +93,39 @@ class Builder:
         return self._place(obj, name, material)
 
 
+class DiagonalMirror:
+    """Builder proxy reflecting plan positions across the tile's NW-SE diagonal,
+    (x, y) -> (-y, -x). That diagonal is the game camera's own axis, so the result is
+    the same piece mirrored left-right on screen: a stall with its curtain on the S edge
+    becomes one with its curtain on the E edge, tarps still on N and W. Parts, names and
+    order are unchanged, so element-id colours match the unmirrored build."""
+
+    def __init__(self, b: Builder) -> None:
+        self.b = b
+        self.parts = b.parts
+
+    @staticmethod
+    def _c(c):
+        return (-c[1], -c[0], c[2])
+
+    @staticmethod
+    def _r(rot):
+        # lying along X <-> lying along Y; a vertical flip stays a vertical flip
+        return (rot[1], rot[0], rot[2])
+
+    def box(self, name, centre, size, material, rot=(0.0, 0.0, 0.0)):
+        return self.b.box(name, self._c(centre), (size[1], size[0], size[2]), material, self._r(rot))
+
+    def cyl(self, name, centre, radius, length, material, rot=(0.0, 0.0, 0.0), vertices=24):
+        return self.b.cyl(name, self._c(centre), radius, length, material, self._r(rot), vertices)
+
+    def cone(self, name, centre, r1, r2, length, material, rot=(0.0, 0.0, 0.0), vertices=24):
+        return self.b.cone(name, self._c(centre), r1, r2, length, material, self._r(rot), vertices)
+
+    def torus(self, name, centre, major, minor, material, rot=(0.0, 0.0, 0.0)):
+        return self.b.torus(name, self._c(centre), major, minor, material, self._r(rot))
+
+
 def make_textures() -> None:
     sys.path.insert(0, str(ROOT))
     import dataclasses
@@ -299,9 +332,15 @@ def build_wash(b: Builder, m: dict) -> None:
     b.box("rag", (-0.33, -0.12, C + 0.03), (0.14, 0.12, 0.012), m["hose"])
 
 
-def build_shower(b: Builder, m: dict, closed: bool = False) -> None:
+def build_shower(b: Builder, m: dict, closed: bool = False, fit_west: bool = False) -> None:
     """Makeshift shower: a black drum up top (sun-warmed), gravity down to a pull-chain
-    head, pallet floor, tarp on the back and far side, a curtain half drawn on the front."""
+    head, pallet floor, tarp on the back and far side, a curtain half drawn on the front.
+
+    Built in world orientation: the tarps hang on the N (+Y) and W (-X) edges, the two
+    edges the game camera sees from inside, so a player standing in the stall is in
+    front of them (and they can carry collideN / collideW). fit_west moves the feed,
+    head, chain and soap shelf to the west side so the four sheet slots differ. The
+    E-edge curtain variants come from DiagonalMirror, not from turning the subject."""
     H = 1.82
     for sx in (-1, 1):
         for sy in (-1, 1):
@@ -341,15 +380,16 @@ def build_shower(b: Builder, m: dict, closed: bool = False) -> None:
     # feed: out of the drum floor, down the back post, over to a head in the middle
     # The head hangs toward the open front-right corner: centred, the platform edge hid
     # it from the game camera.  Feed runs down the near-right post, then inward.
-    b.cyl("feed_down", (0.38, 0.30, H - 0.16), 0.022, 0.34, m["pvc"])
-    b.cyl("feed_elbow", (0.38, 0.12, H - 0.33), 0.022, 0.38, m["pvc"], rot=(math.pi / 2, 0, 0))
-    b.cyl("feed_drop", (0.38, -0.07, H - 0.40), 0.022, 0.14, m["pvc"])
-    b.cone("head", (0.38, -0.07, H - 0.50), 0.03, 0.10, 0.07, m["brass"], rot=(math.pi, 0, 0))
-    b.cyl("chain", (0.30, -0.07, H - 0.68), 0.005, 0.34, m["brass"], vertices=6)
-    b.box("chain_pull", (0.30, -0.07, H - 0.86), (0.035, 0.035, 0.05), m["yellow"])
-    # soap shelf on the near-right post
-    b.box("shelf", (0.38, 0.38, 1.05), (0.14, 0.10, 0.02), m["lumber_dark"])
-    b.box("soap", (0.38, 0.38, 1.075), (0.07, 0.045, 0.03), m["screen"])
+    fx = -1.0 if fit_west else 1.0
+    b.cyl("feed_down", (fx * 0.38, 0.30, H - 0.16), 0.022, 0.34, m["pvc"])
+    b.cyl("feed_elbow", (fx * 0.38, 0.12, H - 0.33), 0.022, 0.38, m["pvc"], rot=(math.pi / 2, 0, 0))
+    b.cyl("feed_drop", (fx * 0.38, -0.07, H - 0.40), 0.022, 0.14, m["pvc"])
+    b.cone("head", (fx * 0.38, -0.07, H - 0.50), 0.03, 0.10, 0.07, m["brass"], rot=(math.pi, 0, 0))
+    b.cyl("chain", (fx * 0.30, -0.07, H - 0.68), 0.005, 0.34, m["brass"], vertices=6)
+    b.box("chain_pull", (fx * 0.30, -0.07, H - 0.86), (0.035, 0.035, 0.05), m["yellow"])
+    # soap shelf on the near-right post (the back-left one when fit_west)
+    b.box("shelf", (fx * 0.38, 0.38, 1.05), (0.14, 0.10, 0.02), m["lumber_dark"])
+    b.box("soap", (fx * 0.38, 0.38, 1.075), (0.07, 0.045, 0.03), m["screen"])
 
 
 BUILDERS = {"drum": build_drum, "stand": build_stand, "twin": build_twin,
@@ -361,6 +401,23 @@ PIECES += [
     # group 6, sheet 18-21: the same stall with the curtain drawn (KNX_ShowerClosed)
     ("showerc", "Makeshift Shower", ("S", "E", "N", "W"), 0.0),
 ]
+
+# Shower sheet slots are NOT turned copies of one stall: turning it would hang the tarps
+# on the S/E edges, in front of anyone inside. Every slot keeps them on N+W and is
+# rendered un-turned (facing S); slot -> (DiagonalMirror, fittings on the west side).
+#   S: curtain S, fittings E    E: curtain E (mirror of S)
+#   N: curtain S, fittings W    W: curtain E (mirror of N)
+SHOWER_SLOTS = {"S": (False, False), "E": (True, False), "N": (False, True), "W": (True, True)}
+
+
+def shower_tile(cname: str, slot: str) -> dict:
+    """Walk-in: no solid/solidtrans, so a player can stand in the stall; the two tarp
+    edges block movement and sight like a wall (collideN = N edge, collideW = W edge)."""
+    tile = dict(RAIN_PROPS, CustomName=cname, Facing=slot)
+    tile.pop("solidtrans", None)
+    tile["collideN"] = ""
+    tile["collideW"] = ""
+    return tile
 
 
 def main() -> None:
@@ -384,13 +441,45 @@ def main() -> None:
     scene.cycles.use_denoising = True
     subject = bpy.data.objects[F.SUBJECT_NAME]
     m = materials()
-    only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv else None
+    # --only drum,shower,... re-renders just those pieces and splices them into the
+    # existing manifest (it used to overwrite it with only the pieces rendered).
+    only = set(sys.argv[sys.argv.index("--only") + 1].split(",")) if "--only" in sys.argv else None
 
     merged: dict = {}
     elements: dict = {}
     cells: list = []
+    prior_path = OUT / "manifest.json"
+    if only and prior_path.exists():
+        prior = json.loads(prior_path.read_text(encoding="utf-8"))
+        redo = {g for g, p in enumerate(PIECES) if p[0] in only}
+        merged = {k: v for k, v in prior.items() if k != "cells"}
+        elements = dict(prior.get("elements", {}))
+        cells = [c for c in prior["cells"] if c.get("group") not in redo]
     for group, (key, cname, facings, offset) in enumerate(PIECES):
-        if only and key != only:
+        if only and key not in only:
+            continue
+        if key in ("shower", "showerc"):
+            props.facings = "1"
+            for slot in facings:
+                diag, west = SHOWER_SLOTS[slot]
+                b = Builder(offset)
+                build_shower(DiagonalMirror(b) if diag else b, m,
+                             closed=(key == "showerc"), fit_west=west)
+                names = [o.name for o in b.parts]
+                for part in b.parts:
+                    part.parent = subject
+                props.sheet_name = f"rn_{key}{slot}"
+                manifest = F.render_cells(bpy.context)
+                for n in names:
+                    obj = bpy.data.objects.get(n)
+                    if obj is not None:
+                        bpy.data.objects.remove(obj, do_unlink=True)
+                elements.update(manifest.get("elements", {}))
+                for cell in manifest["cells"]:
+                    cells.append(dict(cell, facing=slot, group=group,
+                                      tile_props=shower_tile(cname, slot)))
+                print(f"== {key} slot {slot}: {len(names)} parts, mirror={diag} west={west}")
+            props.facings = "4"
             continue
         b = Builder(offset)
         BUILDERS[key](b, m)
@@ -416,9 +505,6 @@ def main() -> None:
             if key == "rack":
                 tile.pop("solidtrans", None)
                 tile["solid"] = ""
-            elif key in ("shower", "showerc"):
-                # walk-in: no solid/solidtrans, so a player can stand in the stall
-                tile.pop("solidtrans", None)
             cells.append(dict(cell, group=group, tile_props=tile))
         print(f"== {key}: {len(names)} parts, {len(facings)} facing(s)")
 
