@@ -55,10 +55,11 @@ ICONS = {
     "KNX_OverheadShelf": "Build_KNXOverheadShelf",
     "KNX_CoatPegs": "Build_KNXCoatPegs",
     "KNX_CrateWardrobe": "Build_KNXCrateWardrobe",
+    "KNX_EngineBayBBQ": "Build_KNXEngineBayBBQ",
 }
 
 ENTITY = re.compile(r"^\s*entity\s+(\w+)\s*$", re.M)
-FACE_S = re.compile(r"face\s+S\b.*?row\s*=\s*([A-Za-z0-9_]+)\s*,", re.S)
+FACE_S = re.compile(r"face\s+S\s*\{\s*layer\s*\{\s*row\s*=\s*([A-Za-z0-9_ ]+?)\s*,", re.S)
 
 
 def south_sprites() -> dict[str, str]:
@@ -99,8 +100,21 @@ def cell(sprite: str) -> Image.Image:
     return sheet.crop((x, y, x + CELL_W, y + CELL_H))
 
 
+def south_art(row: str) -> Image.Image:
+    """One sprite, or a 2x1 row laid out as the game draws it: each step
+    east along the grid moves half a cell right and a quarter cell down."""
+    names = row.split()
+    if len(names) == 1:
+        return cell(names[0])
+    canvas = Image.new("RGBA", (CELL_W + (len(names) - 1) * CELL_W // 2,
+                                CELL_H + (len(names) - 1) * CELL_W // 4), (0, 0, 0, 0))
+    for i, name in enumerate(names):
+        canvas.alpha_composite(cell(name), (i * CELL_W // 2, i * CELL_W // 4))
+    return canvas
+
+
 def make_icon(sprite: str) -> Image.Image:
-    art = cell(sprite)
+    art = south_art(sprite)
     box = art.getbbox()
     if box is None:
         raise SystemExit(f"{sprite}: empty cell")
