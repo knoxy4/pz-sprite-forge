@@ -56,6 +56,8 @@ ICONS = {
     "KNX_CoatPegs": "Build_KNXCoatPegs",
     "KNX_CrateWardrobe": "Build_KNXCrateWardrobe",
     "KNX_EngineBayBBQ": "Build_KNXEngineBayBBQ",
+    "KNX_BeeHive": "Build_KNXBeeHive",
+    "KNX_SwarmTrap": "Build_KNXSwarmTrap",
 }
 
 ENTITY = re.compile(r"^\s*entity\s+(\w+)\s*$", re.M)
