@@ -37,16 +37,14 @@ CORR = lambda sheets, planks, screws, extra=(): dict(
             f"item {screws} [Base.Screws]", *extra])
 
 # name, display, W, N, post, icon sprite, health, build, tooltip
+# Picket and low wrought-iron fences are NOT here: server mod 3536052310 already
+# builds fencing_01_0/1/2 and 4/5/7, and a sprite may belong to one entity only --
+# a duplicate aborts world load (0.8.0 took the server down). Their gates stay.
 FENCES = [
-    ("Picket", "Picket Fence", F+"4", F+"5", F+"7", F+"6", 200, wood(2, 2, 3),
-     "White pickets, waist high. Keeps dogs in and nobody out, but it looks like home."),
     ("Board", "Board Fence", F+"34", F+"32", F+"37", F+"36", 250, wood(3, 2, 4),
      "Waist-high boards, gapped. Hides nothing, slows a crawl."),
     ("Privacy", "Privacy Fence", F+"10", F+"8", F+"13", F+"12", 350, wood(4, 4, 6),
      "Tall solid boards. Nobody sees in, and climbing it is work."),
-    ("IronLow", "Wrought Iron Railing", F+"2", F+"1", F+"0", F+"3", 400,
-     weld(3, 3, ["item 3 [Base.MetalBar]"]),
-     "Low iron railing with finials. Hop it if you must."),
     ("IronTall", "Wrought Iron Fence", F+"66", F+"64", F+"69", F+"68", 600,
      weld(5, 5, ["item 6 [Base.MetalBar]"], "BuildWallMetal"),
      "Tall iron bars with spear tips. See through it, reach through it with a spear, climb it slowly."),
