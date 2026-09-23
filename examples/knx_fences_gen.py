@@ -29,6 +29,12 @@ def weld(skill, n, extra, action="BuildMetalStructureScrap"):
                 inputs=[TORCH.format(n=n), *extra, RODS.format(n=n)])
 
 GATE_HW = ["item 2 [Base.Hinge]", "item 1 [Base.Doorknob]"]
+C = "badlands_corrugated_01_"   # our own sheet (tileset 11), examples/knx_corrugated.py
+DRIVER = "item 1 tags[base:screwdriver] mode:keep flags[NoBrokenItems]"
+CORR = lambda sheets, planks, screws, extra=(): dict(
+    action="BuildWoodenStructureSmall", cat="Carpentry", skill="Woodwork:3",
+    inputs=[DRIVER, f"item {sheets} [Base.SheetMetal]", f"item {planks} [Base.Plank]",
+            f"item {screws} [Base.Screws]", *extra])
 
 # name, display, W, N, post, icon sprite, health, build, tooltip
 FENCES = [
@@ -56,6 +62,8 @@ FENCES = [
      dict(action="BuildWallHammer", cat="Masonry", skill="Masonry:4",
           inputs=[TROWEL, CONCRETE.format(n=2), "item 2 [Base.MetalBar]"]),
      "Precast concrete panels. Blocks sight and fire; climbing it is hard work."),
+    ("Corrugated", "Corrugated Sheet Fence", C+"0", C+"1", C+"3", C+"2", 350, CORR(2, 2, 8),
+     "Scrap roofing sheets screwed to 2x4 rails. Ugly, solid, and nobody sees in."),
 ]
 
 GATES = [
@@ -69,6 +77,8 @@ GATES = [
     ("IronTall", "Tall Wrought Iron Gate", [G+"20", G+"21", G+"22", G+"23"], 500,
      weld(5, 4, ["item 4 [Base.MetalBar]", *GATE_HW], "BuildWallMetal"),
      "A tall iron gate to match the fence. Takes a doorknob, so it locks with a key."),
+    ("Corrugated", "Corrugated Gate", [C+"4", C+"5", C+"6", C+"7"], 350, CORR(2, 3, 10, GATE_HW),
+     "A braced scrap-sheet gate. Takes a doorknob, so it locks with a key."),
 ]
 
 def layer(face, sprite):
@@ -127,6 +137,9 @@ for pg in pk.pages:
     im = Image.open(io.BytesIO(pg.png)).convert("RGBA")
     for e in hits:
         cut[e.name] = im.crop((e.x, e.y, e.x + e.w, e.y + e.h))
+own = Image.open(MOD / "42/media/badlands_corrugated_01.png").convert("RGBA")
+for k in range(8):
+    cut[C + str(k)] = own.crop((k * 128, 0, k * 128 + 128, 256))
 tex = MOD / "common/media/textures"
 for out, spr in icons.items():
     im = cut[spr]; im = im.crop(im.getbbox())
