@@ -1,0 +1,14 @@
+{
+  "_why": "Same scheme as knx_badlands_power_props.json: the generator is picked up through CustomItem, solidtrans blocks movement. Cells 4-7 are the firebox/plume overlay and carry tile_props {} from the manifest, as the bank overlays do.",
+  "core": {
+    "BlocksPlacement": "",
+    "solidtrans": "",
+    "GroupName": "Badlands"
+  },
+  "sequence": [
+    { "CustomName": "Steam Generator", "CustomItem": "Base.BL_GenSteam", "GeneratorSound": "OldGenerator" },
+    { "CustomName": "Steam Generator", "CustomItem": "Base.BL_GenSteam", "GeneratorSound": "OldGenerator" },
+    { "CustomName": "Steam Generator", "CustomItem": "Base.BL_GenSteam", "GeneratorSound": "OldGenerator" },
+    { "CustomName": "Steam Generator", "CustomItem": "Base.BL_GenSteam", "GeneratorSound": "OldGenerator" }
+  ]
+}
