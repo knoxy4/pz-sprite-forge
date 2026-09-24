@@ -31,9 +31,8 @@ EXTRA = [  # (sheet, tileset id, build folder under dist)
     ("badlands_fencing_01", 14, r"_yardfence_build\YardfenceBuild\42\media"),
     ("badlands_gates_01", 15, r"_yardgate_build\YardgateBuild\42\media"),
     ("badlands_cell_01", 16, r"_yardcell_build\YardcellBuild\42\media"),
-    # greenhouse (examples/knx_greenhouse.py + build/_greenhouse_glass.py) -- 0.9.0
-    ("badlands_greenhouse_01", 17, r"_greenhouse_build\GreenhouseBuild\42\media"),
-    ("badlands_ghroof_01", 18, r"_ghroof_build\GhroofBuild\42\media"),
+    # (the greenhouse was 17/18 here for one commit; it is its own mod now,
+    #  BadlandsGreenhouse on tiledef 6475 -- build/_greenhouse_mod.py)
 ]
 
 tilesets = TileDefinitions.read(BAK / "badlands_bookcase_01.tiles")
