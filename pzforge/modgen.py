@@ -93,6 +93,10 @@ BADLANDS_RESERVED: dict[int, str] = {
     6470: "KNXDrugs (knx_cooklab_01) -- cook lab, KNXDrugs 0.9.0",
     6471: "FullBookcases (badlands_bookcase_01) -- moves here at wipe",
     6472: "BadlandsPower (badlands_power_01) -- moves here at wipe",
+    6473: "BadlandsPosters (badlands_posters_01) -- boot-tested, not yet published",
+    6474: "BadlandsPowerControllers (badlands_powerctl_01) -- built 2026-09-24 (0.1.0), unpublished",
+    6476: "ikag_garage (ikag_garage_01) -- Tokin's garage mod, reserved 2026-09-24, unpublished",
+    6477: "BadlandsFence (badlands_fence_01) -- electric fence M1, reserved 2026-09-25, unpublished",
 }
 
 #: Community census of tiledef ids above 1300, keyed id -> mod. Used to check a
