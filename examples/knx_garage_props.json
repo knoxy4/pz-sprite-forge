@@ -1,0 +1,86 @@
+{
+  "_why": "Garage set for Tokin's mod (knx_garage.py). Material Mechanical first (Hammer + Woodwork, like the KNXDrugs burner) because MetalScrap first demands a blowtorch and welding mask; MetalScrap second supplies the yield. Stations are entities (CraftBench) in the kit scripts, so these props only cover pickup, blocking and scrap.",
+  "_sheet_order": "Subject-major via the manifest group stamp (same as knx_badlands_power): index // 4 = piece (0 stand, 1 tire changer, 2 compressor), index % 4 = facing S,E,N,W. VERIFY against the built .tiles.txt before wiring entity rows.",
+  "core": {
+    "BlocksPlacement": "",
+    "solidtrans": "",
+    "IsMoveAble": "",
+    "CanScrap": "",
+    "ScrapSize": "Medium",
+    "GroupName": "Garage"
+  },
+  "sequence": [
+    {
+      "Material": "Mechanical",
+      "CustomName": "Engine Stand",
+      "Material2": "MetalScrap",
+      "PickUpWeight": "200"
+    },
+    {
+      "Material": "Mechanical",
+      "CustomName": "Engine Stand",
+      "Material2": "MetalScrap",
+      "PickUpWeight": "200"
+    },
+    {
+      "Material": "Mechanical",
+      "CustomName": "Engine Stand",
+      "Material2": "MetalScrap",
+      "PickUpWeight": "200"
+    },
+    {
+      "Material": "Mechanical",
+      "CustomName": "Engine Stand",
+      "Material2": "MetalScrap",
+      "PickUpWeight": "200"
+    },
+    {
+      "Material": "Mechanical",
+      "CustomName": "Tire Changer",
+      "Material2": "MetalScrap",
+      "PickUpWeight": "300"
+    },
+    {
+      "Material": "Mechanical",
+      "CustomName": "Tire Changer",
+      "Material2": "MetalScrap",
+      "PickUpWeight": "300"
+    },
+    {
+      "Material": "Mechanical",
+      "CustomName": "Tire Changer",
+      "Material2": "MetalScrap",
+      "PickUpWeight": "300"
+    },
+    {
+      "Material": "Mechanical",
+      "CustomName": "Tire Changer",
+      "Material2": "MetalScrap",
+      "PickUpWeight": "300"
+    },
+    {
+      "Material": "Mechanical",
+      "CustomName": "Air Compressor",
+      "Material2": "MetalScrap",
+      "PickUpWeight": "200"
+    },
+    {
+      "Material": "Mechanical",
+      "CustomName": "Air Compressor",
+      "Material2": "MetalScrap",
+      "PickUpWeight": "200"
+    },
+    {
+      "Material": "Mechanical",
+      "CustomName": "Air Compressor",
+      "Material2": "MetalScrap",
+      "PickUpWeight": "200"
+    },
+    {
+      "Material": "Mechanical",
+      "CustomName": "Air Compressor",
+      "Material2": "MetalScrap",
+      "PickUpWeight": "200"
+    }
+  ]
+}
