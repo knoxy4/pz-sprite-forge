@@ -58,6 +58,17 @@ CRATE_PROPS = dict(WOOD_PROPS, container="crate", PickUpWeight="180",
                    ContainerPutSound="ShelfWoodTransferItem",
                    ContainerTakeSound="ShelfWoodTransferItem")
 
+# Collision matched to each piece's vanilla analog (newtiledefinitions.tiles, 42.20):
+# wall shelves / clothing-shop wall rails keep BlocksPlacement but are not solid,
+# Coat Rack and Wood Pegboard are neither, Low Shelves are solidtrans + IsLow;
+# standing shelves and wardrobes stay solid. FullBookcases 0.8.9.
+COLLISION = {
+    "closetrod": (["solid"], {}),
+    "hatshelf": (["solid"], {}),
+    "pegboard": (["solid", "BlocksPlacement"], {}),
+    "bootcubby": (["solid"], {"solidtrans": "", "IsLow": ""}),
+}
+
 OBJECTS = [
     # key, CustomName, capacity, base props
     ("closetrod", "Closet Shelf and Rod", "50", WOOD_PROPS),
@@ -541,6 +552,10 @@ def main() -> None:
         if not merged:
             merged = dict(states[0])
         tile = dict(base, CustomName=cname, ContainerCapacity=cap)
+        drop_keys, add_keys = COLLISION.get(key, ([], {}))
+        for k in drop_keys:
+            tile.pop(k, None)
+        tile.update(add_keys)
         for facing in ("S", "E", "N", "W"):
             for st in states:
                 for cell in st["cells"]:
