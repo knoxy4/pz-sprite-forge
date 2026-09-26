@@ -38,6 +38,13 @@ DEPTH = {  # ours -> vanilla sprite whose depth texture we reuse
     "badlands_greenhouse_01_7": "fixtures_doors_01_3",
     "badlands_ghroof_01_0": "preset_depthmaps_01_0",      # = constructedobjects_01_86
 }
+# Glass walls draw in B42's translucent pass, which writes no depth. Without this the glass
+# (alpha 104) writes depth over its whole face and hides everything behind it: players,
+# crops, all of it, down to the floor. Mirrors vanilla's glass storefront walls
+# walls_commercial_02_16..19 (same presets 01_4..7): Translucent + UseObjectDepthTexture.
+# Door sprites (4-7) render through the door path and are left alone, as vanilla does.
+TRANSLUCENT = ["badlands_greenhouse_01_0", "badlands_greenhouse_01_1",
+               "badlands_greenhouse_01_2", "badlands_greenhouse_01_3"]
 ICONS = {"Build_KNX_GreenhouseWall": "badlands_greenhouse_01_2",
          "Build_KNX_GreenhouseDoor": "badlands_greenhouse_01_4",
          "Build_KNX_GreenhouseRoof": "badlands_ghroof_01_0"}
@@ -67,6 +74,21 @@ lines += [f"    {k} = {v}," for k, v in DEPTH.items()]
 lines += ["}", ""]
 (MEDIA / "tileDepthTextureAssignments.txt").write_text("\n".join(lines), encoding="utf-8", newline="\n")
 
+geo = {}  # sheet -> [(sprite name, col, row)]; tileGeometry xy is col x row on an 8-wide sheet
+for name in TRANSLUCENT:
+    sheet, idx = name.rsplit("_", 1)
+    geo.setdefault(sheet, []).append((name, int(idx) % 8, int(idx) // 8))
+lines = ["tileGeometry", "{", "    VERSION = 2,"]
+for sheet, tiles in geo.items():
+    lines += ["", "    tileset", "    {", f"        name = {sheet},"]
+    for name, c, r in tiles:
+        lines += ["", f"        /* {name} */", "        tile", "        {", f"            xy = {c}x{r},", "",
+                  "            properties", "            {", "                Translucent = true,",
+                  "                UseObjectDepthTexture = true,", "            }", "        }"]
+    lines += ["    }"]
+lines += ["}", ""]
+(MEDIA / "tileGeometry.txt").write_text("\n".join(lines), encoding="utf-8", newline="\n")
+
 cut = {}
 for page in pages:
     img = Image.open(io.BytesIO(page.png)).convert("RGBA")
@@ -91,4 +113,5 @@ for ts in rt.tilesets:
     print(f"tileset {ts.name} id={ts.id} {ts.cols}x{ts.rows} tiles={len(filled)} unpacked={missing}")
     assert not missing
 assert set(DEPTH) <= names
+assert set(TRANSLUCENT) <= names
 print("pages", [p.name for p in rp.pages], "entries", len(names))
