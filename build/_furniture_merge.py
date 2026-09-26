@@ -52,6 +52,16 @@ assert len(names) == len(set(names)), names
 ids = [t.id for t in tilesets.tilesets]
 assert len(ids) == len(set(ids)), ids
 
+# Fill-state pieces (> 4 sprites per name) get explicit N/E/S/W offsets, or they can't be
+# rotated after a pick-up (mods/furniture-rotation-bug-20260925.md).
+sys.path.insert(0, r"C:\Users\KNX\dev\pz-sprite-forge\tools")
+import rotation_offsets  # noqa: E402
+
+_edits, _skipped = rotation_offsets.plan(tilesets)
+rotation_offsets.apply(tilesets, _edits)
+assert not rotation_offsets.verify(tilesets)
+print(f"rotation offsets: {len(_edits)} sprites; skipped {_skipped}")
+
 tilesets.write(MOD / "badlands_bookcase_01.tiles")
 (MOD / "badlands_bookcase_01.tiles.txt").write_text(tilesets.to_text(), encoding="utf-8", newline="\n")
 TexturePack(pages=pages, version=book_p.version, has_header=book_p.has_header).write(
