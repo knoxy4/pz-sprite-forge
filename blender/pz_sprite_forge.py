@@ -1017,10 +1017,74 @@ def _descendant_meshes(root) -> list:
     return out
 
 
+def _depth_cell(context, parts, i: int, j: int, out_dir: str, name: str) -> dict:
+    """PZF_DEPTH mode: cast the GAME's camera rays (pzforge.tiledepth, a port of
+    TileGeometryUtils) into the geometry exactly as it stands for this cell, instead
+    of rendering it. Scene space is tile-local to cell (i, j). Writes <name>_D.npy
+    (float32 256x128, -1 = miss) and <name>_D.json (per-part boxes on this tile)."""
+    import sys as _sys
+
+    import bmesh
+    import numpy as np
+    from mathutils.bvhtree import BVHTree
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if root not in _sys.path:
+        _sys.path.insert(0, root)
+    from pzforge import tiledepth as TD
+
+    ox, oy = i * TILE, -j * TILE
+    context.view_layer.update()
+    dg = context.evaluated_depsgraph_get()
+    bm = bmesh.new()
+    boxes = []
+    for part in parts:
+        # holdouts cut the render and never reach the sprite; the rest is what the camera sees
+        if part.hide_render or part.is_holdout or not part.visible_camera:
+            continue
+        ev = part.evaluated_get(dg)
+        me = ev.to_mesh()
+        me.transform(ev.matrix_world)
+        bm.from_mesh(me)
+        ev.to_mesh_clear()
+        sc = [((w := ev.matrix_world @ Vector(c)).x - ox, w.z, -(w.y - oy))
+              for c in ev.bound_box]
+        lo = [min(p[k] for p in sc) for k in range(3)]
+        hi = [max(p[k] for p in sc) for k in range(3)]
+        if lo[0] < 0.5 and hi[0] > -0.5 and lo[2] < 0.5 and hi[2] > -0.5:
+            boxes.append({"name": part.name, "min": lo, "max": hi})
+    bvh = BVHTree.FromBMesh(bm)
+    bm.free()
+
+    origins, dirs = TD.pixel_rays()
+    n = origins.shape[1]
+    hits = np.zeros((3, n))
+    ok = np.zeros(n, dtype=bool)
+    for k in range(n):
+        o, d = origins[:, k], dirs[:, k]
+        loc, _nrm, _idx, _dist = bvh.ray_cast(Vector((o[0] + ox, -o[2] + oy, o[1])),
+                                              Vector((d[0], -d[2], d[1])), 10.0)
+        if loc is not None:
+            hits[:, k] = (loc.x - ox, loc.z, -(loc.y - oy))
+            ok[k] = True
+    depth = np.full(n, -1.0, dtype=np.float32)
+    depth[ok] = TD.normalized(TD.depth_of_points(hits[:, ok]))
+    stem = name[:-4]
+    np.save(os.path.join(out_dir, stem + "_D.npy"), depth.reshape(TD.CELL_H, TD.CELL_W))
+    with open(os.path.join(out_dir, stem + "_D.json"), "w", encoding="utf-8") as fh:
+        json.dump(boxes, fh, indent=1)
+    print(f"depth {name}: {int(ok.sum())} px hit, {len(boxes)} boxes")
+    return {"depth": stem + "_D.npy", "boxes": stem + "_D.json"}
+
+
 def render_cells(context, report=None) -> dict:
     props = context.scene.pz_forge
     scene = context.scene
     cw, ch = cell_size(props.scale_2x)
+    # PZF_DEPTH=1: bake B42 tile depth per cell instead of rendering (tools/depth_bake.py)
+    depth_mode = bool(os.environ.get("PZF_DEPTH"))
+    if depth_mode and (cw, ch) != (128, 256):
+        raise RuntimeError(f"depth bake needs 2x cells (128x256), got {cw}x{ch}")
 
     cam = bpy.data.objects.get(CAMERA_NAME)
     subject = bpy.data.objects.get(SUBJECT_NAME)
@@ -1096,6 +1160,10 @@ def render_cells(context, report=None) -> dict:
                                     int(math.floor(-cy + 0.5)))
                             part.hide_render = tile != (i, j)
                     name = f"{props.sheet_name}_{facing}_x{i}_y{j}.png"
+                    if depth_mode:
+                        cells.append(dict({"file": name, "facing": facing, "x": i, "y": j},
+                                          **_depth_cell(context, parts, i, j, out_dir, name)))
+                        continue
                     scene.render.filepath = os.path.join(out_dir, name)
                     bpy.ops.render.render(write_still=True)
 
