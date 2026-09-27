@@ -99,6 +99,7 @@ BADLANDS_RESERVED: dict[int, str] = {
     6477: "BadlandsFence (badlands_fence_01) -- electric fence M1, reserved 2026-09-25, unpublished",
     6478: "BadlandsPowerSteam (badlands_steam_01) -- moved off 6476 2026-09-26 (0.1.2), public",
     6479: "BadlandsSecurity (badlands_security_01) -- security M1/M2, reserved 2026-09-26, unpublished",
+    6480: "BoombuksBeds (boombuk_beds_01) -- Furniture DLC, six beds with storage, reserved 2026-09-26, unpublished",
 }
 
 #: Community census of tiledef ids above 1300, keyed id -> mod. Used to check a
