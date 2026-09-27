@@ -1017,11 +1017,18 @@ def _descendant_meshes(root) -> list:
     return out
 
 
-def _depth_cell(context, parts, i: int, j: int, out_dir: str, name: str) -> dict:
+def _depth_cell(context, parts, i: int, j: int, out_dir: str, name: str,
+                multi_tile: bool = False) -> dict:
     """PZF_DEPTH mode: cast the GAME's camera rays (pzforge.tiledepth, a port of
     TileGeometryUtils) into the geometry exactly as it stands for this cell, instead
-    of rendering it. Scene space is tile-local to cell (i, j). Writes <name>_D.npy
-    (float32 256x128, -1 = miss) and <name>_D.json (per-part boxes on this tile)."""
+    of rendering it. Scene space is tile-local to cell (i, j).
+
+    Holdouts ARE ray targets: they hide what is behind them in the render, so they must
+    stop the ray here too (an overlay drawn with its host as holdout, the spike pit's
+    ground). Writes <name>_D.npy (float32 256x128, -1 = miss), <name>_S.npy (bool: the
+    nearest hit is a rendered, non-holdout surface -- on this footprint tile for a
+    multi-tile object, mirroring the tile cut -- i.e. the silhouette the sprite should
+    have) and <name>_D.json (boxes of the rendered parts on this tile)."""
     import sys as _sys
 
     import bmesh
@@ -1038,21 +1045,29 @@ def _depth_cell(context, parts, i: int, j: int, out_dir: str, name: str) -> dict
     dg = context.evaluated_depsgraph_get()
     bm = bmesh.new()
     boxes = []
+    holdout_faces = []          # (first face index, end, is_holdout) per part
     for part in parts:
-        # holdouts cut the render and never reach the sprite; the rest is what the camera sees
-        if part.hide_render or part.is_holdout or not part.visible_camera:
+        if part.hide_render or not part.visible_camera:
             continue
         ev = part.evaluated_get(dg)
         me = ev.to_mesh()
         me.transform(ev.matrix_world)
+        f0 = len(bm.faces)
         bm.from_mesh(me)
         ev.to_mesh_clear()
+        holdout_faces.append((f0, len(bm.faces), bool(part.is_holdout)))
+        if part.is_holdout:
+            continue
         sc = [((w := ev.matrix_world @ Vector(c)).x - ox, w.z, -(w.y - oy))
               for c in ev.bound_box]
         lo = [min(p[k] for p in sc) for k in range(3)]
         hi = [max(p[k] for p in sc) for k in range(3)]
         if lo[0] < 0.5 and hi[0] > -0.5 and lo[2] < 0.5 and hi[2] > -0.5:
             boxes.append({"name": part.name, "min": lo, "max": hi})
+    n_faces = len(bm.faces)
+    is_holdout = np.zeros(max(1, n_faces), dtype=bool)
+    for f0, f1, h in holdout_faces:
+        is_holdout[f0:f1] = h
     bvh = BVHTree.FromBMesh(bm)
     bm.free()
 
@@ -1060,21 +1075,26 @@ def _depth_cell(context, parts, i: int, j: int, out_dir: str, name: str) -> dict
     n = origins.shape[1]
     hits = np.zeros((3, n))
     ok = np.zeros(n, dtype=bool)
+    own = np.zeros(n, dtype=bool)
     for k in range(n):
         o, d = origins[:, k], dirs[:, k]
-        loc, _nrm, _idx, _dist = bvh.ray_cast(Vector((o[0] + ox, -o[2] + oy, o[1])),
-                                              Vector((d[0], -d[2], d[1])), 10.0)
+        loc, _nrm, idx, _dist = bvh.ray_cast(Vector((o[0] + ox, -o[2] + oy, o[1])),
+                                             Vector((d[0], -d[2], d[1])), 10.0)
         if loc is not None:
-            hits[:, k] = (loc.x - ox, loc.z, -(loc.y - oy))
+            p = (loc.x - ox, loc.z, -(loc.y - oy))
+            hits[:, k] = p
             ok[k] = True
+            own[k] = (not is_holdout[idx]) and (
+                not multi_tile or (abs(p[0]) <= 0.5 + 1e-4 and abs(p[2]) <= 0.5 + 1e-4))
     depth = np.full(n, -1.0, dtype=np.float32)
     depth[ok] = TD.normalized(TD.depth_of_points(hits[:, ok]))
     stem = name[:-4]
     np.save(os.path.join(out_dir, stem + "_D.npy"), depth.reshape(TD.CELL_H, TD.CELL_W))
+    np.save(os.path.join(out_dir, stem + "_S.npy"), own.reshape(TD.CELL_H, TD.CELL_W))
     with open(os.path.join(out_dir, stem + "_D.json"), "w", encoding="utf-8") as fh:
         json.dump(boxes, fh, indent=1)
-    print(f"depth {name}: {int(ok.sum())} px hit, {len(boxes)} boxes")
-    return {"depth": stem + "_D.npy", "boxes": stem + "_D.json"}
+    print(f"depth {name}: {int(ok.sum())} px hit, {int(own.sum())} own, {len(boxes)} boxes")
+    return {"depth": stem + "_D.npy", "sil": stem + "_S.npy", "boxes": stem + "_D.json"}
 
 
 def render_cells(context, report=None) -> dict:
@@ -1162,7 +1182,8 @@ def render_cells(context, report=None) -> dict:
                     name = f"{props.sheet_name}_{facing}_x{i}_y{j}.png"
                     if depth_mode:
                         cells.append(dict({"file": name, "facing": facing, "x": i, "y": j},
-                                          **_depth_cell(context, parts, i, j, out_dir, name)))
+                                          **_depth_cell(context, parts, i, j, out_dir, name,
+                                                        multi_tile=fx * fy > 1)))
                         continue
                     scene.render.filepath = os.path.join(out_dir, name)
                     bpy.ops.render.render(write_still=True)

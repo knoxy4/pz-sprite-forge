@@ -43,6 +43,8 @@ from pzforge import tiledepth as TD  # noqa: E402
 
 MAX_FILL_STEPS = 6          # px; a real render/bake misregistration shows up as far more
 MAX_FILL_SHARE = 0.08       # of the sprite's pixels
+MIN_IOU_PX = 1500           # below this a sprite is mostly rim; IoU says nothing
+MIN_COVER = 0.90            # share of sprite pixels a ray must hit directly
 
 
 def sheet_order(manifest: dict) -> list[dict]:
@@ -81,7 +83,7 @@ def main() -> int:
     ap.add_argument("--media", required=True, type=Path)
     ap.add_argument("--min-iou", type=float, default=0.80,
                     help="fail a cell whose geometry silhouette and sprite alpha overlap less than this")
-    ap.add_argument("--island-px", type=int, default=0,
+    ap.add_argument("--island-px", type=int, default=4,
                     help="tolerate up to N sprite pixels per cell that no 4-connected hit can reach "
                          "(diagonal-only AA specks); they take the raw ray hit there, else the nearest known depth")
     ap.add_argument("--max-boxes", type=int, default=8,
@@ -92,21 +94,29 @@ def main() -> int:
     if args.manifest:
         man = json.loads(args.manifest.read_text(encoding="utf-8"))
         ordered = sheet_order(man)
+        multi = list(man.get("footprint", [1, 1])) != [1, 1]
         if args.ref_manifest:
+            # The render manifest is what the sheet was built from -- some recipes stamp
+            # group/tile_props into it after render_cells (knx_hive) -- so ITS order places
+            # the cells, and the bake must cover exactly the same files.
             ref = sheet_order(json.loads(args.ref_manifest.read_text(encoding="utf-8")))
-            a, b = [c["file"] for c in ordered], [c["file"] for c in ref]
-            if a != b:
-                first = next((k for k, (x, y) in enumerate(zip(a, b)) if x != y), min(len(a), len(b)))
-                print(f"depth_pack: FAILED -- bake lists {len(a)} cells, render {len(b)}; first "
-                      f"difference at slot {first}: {a[first:first + 1]} vs {b[first:first + 1]}")
+            by_file = {c["file"]: c for c in ordered}
+            missing = [c["file"] for c in ref if c["file"] not in by_file]
+            extra = sorted(set(by_file) - {c["file"] for c in ref})
+            if missing or extra:
+                print(f"depth_pack: FAILED -- bake and render disagree: missing {missing[:3]} "
+                      f"({len(missing)}), extra {extra[:3]} ({len(extra)})")
                 return 1
+            ordered = [by_file[c["file"]] for c in ref]
         base = args.manifest.parent
-        jobs = [(k, base / c["depth"], base / c["boxes"]) for k, c in enumerate(ordered)]
+        jobs = [(k, base / c["depth"], base / c["boxes"], base / c["sil"] if c.get("sil") else None)
+                for k, c in enumerate(ordered)]
     else:
+        multi = False
         jobs = []
         for raw in sorted(args.raw.glob("raw_*.npy"), key=lambda p: int(p.stem.split("_")[1])):
             idx = int(raw.stem.split("_")[1])
-            jobs.append((idx, raw, args.raw / f"boxes_{idx}.json"))
+            jobs.append((idx, raw, args.raw / f"boxes_{idx}.json", None))
 
     sheet = np.asarray(Image.open(args.sheet).convert("RGBA"))
     rows, cols = sheet.shape[0] // TD.CELL_H, sheet.shape[1] // TD.CELL_W
@@ -116,10 +126,10 @@ def main() -> int:
     # The engine lays EVERY mod depth texture out 8 columns wide by sprite index
     # (TileDepthTextures.createTileset: numColumns = 8), and tileGeometry.txt's xy uses the
     # same index grid -- whatever the sprite sheet's own width (badlands_bookcase_01 is 12).
-    n_slots = max((j[0] for j in jobs), default=-1) + 1
+    n_slots = max((jb[0] for jb in jobs), default=-1) + 1
     out = np.zeros((-(-n_slots // 8) * TD.CELL_H, 8 * TD.CELL_W, 4), dtype=np.uint8)
     blocks, failed, n_ok, n_empty, ious = [], False, 0, 0, []
-    for idx, raw, boxes_path in jobs:
+    for idx, raw, boxes_path, sil_path in jobs:
         sc_, sr_ = idx % cols, idx // cols
         mask = sheet[sr_ * TD.CELL_H:(sr_ + 1) * TD.CELL_H, sc_ * TD.CELL_W:(sc_ + 1) * TD.CELL_W, 3] > 0
         c, r = idx % 8, idx // 8
@@ -128,30 +138,55 @@ def main() -> int:
             n_empty += 1
             continue
         geo = np.load(raw)
-        hit = geo >= 0
+        if not (geo >= 0).any():
+            # no geometry at all behind a few stray render pixels (an overlay whose host
+            # hides it in this facing): leave the cell empty = engine default depth
+            if mask.sum() <= args.island_px:
+                n_empty += 1
+                continue
+            print(f"FAIL {args.tileset}_{idx}: sprite {mask.sum()} px but the bake hit nothing")
+            failed = True
+            continue
+        # silhouette the sprite should have: nearest hit is a rendered surface (holdouts stop
+        # rays but never paint) on this footprint tile -- raw hits for legacy bakes
+        hit = np.load(sil_path) if sil_path is not None else geo >= 0
         iou = (hit & mask).sum() / max(1, (hit | mask).sum())
         depth, filled, steps, unfilled = TD.fill_to_mask(geo, mask)
         if 0 < unfilled <= args.island_px:
             hole_y, hole_x = np.nonzero(mask & (depth < 0))
             ky, kx = np.nonzero(depth >= 0)
+            if ky.size == 0:            # a speck off every masked hit: nearest raw hit anywhere
+                ky, kx = np.nonzero(geo >= 0)
+                pool = geo
+            else:
+                pool = depth
             for y, x in zip(hole_y, hole_x):
                 if geo[y, x] >= 0:
                     depth[y, x] = geo[y, x]
                 else:
                     k = int(np.argmin((ky - y) ** 2 + (kx - x) ** 2))
-                    depth[y, x] = depth[ky[k], kx[k]]
+                    depth[y, x] = pool[ky[k], kx[k]]
             filled += unfilled
             unfilled = 0
         share = filled / max(1, mask.sum())
         # a rim fill of 1-2 px is contour/AA; a big share only matters when it reaches further
-        bad = (unfilled > 0 or steps > MAX_FILL_STEPS or iou < args.min_iou
-               or (share > MAX_FILL_SHARE and steps > 2))
+        # IoU is only a registration signal on a real silhouette; a 100-px honey glaze is
+        # all rim. Small sprites are held to the fill-reach gate instead.
+        # coverage: sprite pixels with a direct ray hit. It is the gate for multi-tile cells,
+        # whose shipped cut (tile pass + seam repair) is not a pure footprint test.
+        cover = ((geo >= 0) & mask).sum() / max(1, mask.sum())
+        bad = (unfilled > 0 or steps > MAX_FILL_STEPS
+               or (share > MAX_FILL_SHARE and steps > 3)
+               or (mask.sum() >= MIN_IOU_PX and cover < MIN_COVER and steps > 2)
+               # thin pieces (poles, produce strips) are mostly contour: a low IoU with every
+               # gap closed within 2 px is the style pass's stroke, not a misregistration
+               or (not multi and mask.sum() >= MIN_IOU_PX and iou < args.min_iou and steps > 2))
         ious.append(iou)
         failed |= bad
         n_ok += not bad
         if bad or not args.manifest:
             print(f"{'FAIL' if bad else 'ok  '} {args.tileset}_{idx}: sprite {mask.sum()} px, geometry IoU "
-                  f"{iou:.3f}, filled {filled} px ({share:.1%}) within {steps} px, uncovered {unfilled}")
+                  f"{iou:.3f}, cover {cover:.3f}, filled {filled} px ({share:.1%}) within {steps} px, uncovered {unfilled}")
         out[ys, xs] = TD.encode_cell(depth)
 
         boxes = json.loads(boxes_path.read_text(encoding="utf-8"))

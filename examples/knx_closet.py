@@ -504,11 +504,11 @@ def main() -> None:
         # scavenger logic put them in, so a cut can never strand a sub-part.
         units, at = [], {}
         for n in seq:
-            key = unit_of(n)
-            if key in at:
-                units[at[key]].append(n)
+            ukey = unit_of(n)   # not `key`: that is the piece key COLLISION and the tags need
+            if ukey in at:
+                units[at[ukey]].append(n)
             else:
-                at[key] = len(units)
+                at[ukey] = len(units)
                 units.append([n])
 
         def drop(names):
