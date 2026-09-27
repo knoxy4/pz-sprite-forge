@@ -38,6 +38,9 @@ def main() -> int:
     ap.add_argument("--sheet", required=True, type=Path)
     ap.add_argument("--tileset", required=True)
     ap.add_argument("--media", required=True, type=Path)
+    ap.add_argument("--island-px", type=int, default=0,
+                    help="tolerate up to N sprite pixels per cell that no 4-connected hit can reach "
+                         "(diagonal-only AA specks); they take the raw ray hit there, else the nearest known depth")
     args = ap.parse_args()
 
     sheet = np.asarray(Image.open(args.sheet).convert("RGBA"))
@@ -53,6 +56,17 @@ def main() -> int:
         hit = geo >= 0
         iou = (hit & mask).sum() / max(1, (hit | mask).sum())
         depth, filled, steps, unfilled = TD.fill_to_mask(geo, mask)
+        if 0 < unfilled <= args.island_px:
+            hole_y, hole_x = np.nonzero(mask & (depth < 0))
+            ky, kx = np.nonzero(depth >= 0)
+            for y, x in zip(hole_y, hole_x):
+                if geo[y, x] >= 0:
+                    depth[y, x] = geo[y, x]
+                else:
+                    k = int(np.argmin((ky - y) ** 2 + (kx - x) ** 2))
+                    depth[y, x] = depth[ky[k], kx[k]]
+            filled += unfilled
+            unfilled = 0
         share = filled / max(1, mask.sum())
         bad = unfilled > 0 or steps > MAX_FILL_STEPS or share > MAX_FILL_SHARE
         failed |= bad

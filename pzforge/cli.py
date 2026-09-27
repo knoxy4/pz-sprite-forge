@@ -65,7 +65,9 @@ def cmd_build(args: argparse.Namespace) -> int:
         from . import finish as finishmod
         cut_groups: dict[str, list] = {}
         for cell in cells:
-            cut_groups.setdefault(cell.facing, []).append(cell)
+            # one object per (group, facing): a sheet can carry several multi-tile
+            # objects, and their cells must never seam-repair into each other
+            cut_groups.setdefault((cell.group, cell.facing), []).append(cell)
         step_x, step_y = cell_size[0] // 2, cell_size[0] // 4
         repaired = 0
         for cut_group in cut_groups.values():
@@ -215,9 +217,11 @@ def cmd_build(args: argparse.Namespace) -> int:
         for i, cell in enumerate(cells):
             if cell.raw:
                 continue                 # emissive overlay: ships as rendered
-            by_facing.setdefault((cell.facing, i if isolated else None),
+            # keyed by group too: several multi-tile objects on one sheet share
+            # grid offsets, and composing them together pastes one over another
+            by_facing.setdefault((cell.group, cell.facing, i if isolated else None),
                                  []).append(i)
-        for (facing, _), group in by_facing.items():
+        for (_grp, facing, _), group in by_facing.items():
             raw = [((cells[i].x - cells[i].y) * step_x,
                     (cells[i].x + cells[i].y) * step_y) for i in group]
             minx = min(o[0] for o in raw)
